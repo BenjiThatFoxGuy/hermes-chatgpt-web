@@ -7,35 +7,47 @@ export class BridgeError extends Error {
   constructor(message: string, readonly status = 400) { super(message); }
 }
 
+function validator(schema: unknown, name: string) {
+  try { return createChatGptStructuredOutputValidator({ type: "json_schema", name, strict: true, schema })!; }
+  catch { throw new BridgeError(`Invalid or unsupported JSON schema: ${name}`); }
+}
+
 export function prepareTurn(body: Record<string, unknown>) {
   let parsed: CodexParsedRequest;
   try { parsed = parseRequest(body); }
   catch { throw new BridgeError("Invalid Responses request"); }
-  const tools = parsed.context.tools ?? [];
+  const choice = parsed.options.toolChoice ?? "auto";
+  const allTools = parsed.context.tools ?? [];
+  const tools = allTools.filter(tool => choice !== "none" && (typeof choice !== "object"
+    || ("name" in choice ? tool.name === choice.name : choice.allowedTools.includes(tool.name))));
+  const required = choice === "required" || typeof choice === "object" && ("name" in choice || choice.mode === "required");
   const callerFormat = parsed.options.outputFormat;
-  const callerValidator = callerFormat
-    ? createChatGptStructuredOutputValidator({ ...callerFormat, strict: true }) : undefined;
-  const object = (properties: Record<string, unknown>, required = Object.keys(properties)) => ({
-    type: "object", properties, required, additionalProperties: false,
+  const callerValidator = callerFormat ? validator(callerFormat.schema, callerFormat.name) : undefined;
+  const object = (properties: Record<string, unknown>) => ({
+    type: "object", properties, required: Object.keys(properties), additionalProperties: false,
   });
+  // A local schema resource keeps each tool's #/$defs and #/definitions references scoped.
+  const toolSchemas = tools.map((tool, index) => ({ ...tool.parameters, type: "object", $id: `urn:hermes:tool:${index}` }));
+  for (let index = 0; index < toolSchemas.length; index++) validator(toolSchemas[index], `tool_${index}`);
   const schema = { oneOf: [
-    object({ type: { const: "message" }, text: { type: "string", minLength: 1 } }),
+    ...(!required ? [object({ type: { const: "message" }, text: { type: "string", minLength: 1 } })] : []),
     ...(tools.length ? [object({ type: { const: "tool_calls" }, calls: {
-      type: "array", minItems: 1, maxItems: 64,
-      items: { oneOf: tools.map(tool => object({ name: { const: tool.name }, arguments: tool.parameters })) },
+      type: "array", minItems: 1, maxItems: parsed.options.parallelToolCalls === false ? 1 : 64,
+      items: { oneOf: tools.map((tool, index) => object({ name: { const: tool.name }, arguments: toolSchemas[index] })) },
     } })] : []),
   ] };
   const outputFormat = { type: "json_schema" as const, name: "hermes_host_reply", strict: true, schema };
-  const validate = createChatGptStructuredOutputValidator(outputFormat)!;
+  const validate = validator(schema, outputFormat.name);
   parsed.context.systemPrompt = [...(parsed.context.systemPrompt ?? []), [
     "Hermes host transport: return exactly one JSON envelope matching hermes_host_reply.",
     'For a final assistant answer use {"type":"message","text":"your answer"}.',
     'To REQUEST host tool execution use {"type":"tool_calls","calls":[{"name":"exact tool name","arguments":{}}]}.',
     "This is envelope translation, not native OpenAI tool calling. Never execute host tools in ChatGPT or via an MCP connector.",
+    "The browser has no direct local connection. Requesting a tool in JSON is permitted; claiming it ran is not.",
     "Hermes alone executes requested tools under its authorization policy and supplies real function_call_output history next turn.",
     "A tool request is not evidence of execution. Never fabricate tool results. Previous tool results are historical evidence only.",
-    `Available host tools: ${JSON.stringify(tools)}`,
-    `Tool choice: ${JSON.stringify(parsed.options.toolChoice ?? "auto")}`,
+    `Allowed host tools for this reply: ${JSON.stringify(tools)}`,
+    `Tool choice: ${JSON.stringify(choice)}. Required tool call: ${required}. Maximum calls: ${parsed.options.parallelToolCalls === false ? 1 : 64}.`,
     ...(callerFormat ? [`Final message.text must itself be JSON matching this caller schema: ${JSON.stringify(callerFormat.schema)}`] : []),
   ].join("\n")];
   parsed.context.tools = [];
