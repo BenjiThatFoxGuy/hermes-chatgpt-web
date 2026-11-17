@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { parseRequest } from "../responses/parser";
-import { createChatGptStructuredOutputValidator } from "../adapters/chatgpt-web/output-validation";
+import { createChatGptStructuredOutputValidator, parseChatGptStructuredJson } from "../adapters/chatgpt-web/output-validation";
 import type { AdapterEvent, CodexParsedRequest } from "../types";
 
 export class BridgeError extends Error {
@@ -57,7 +57,7 @@ export function prepareTurn(body: Record<string, unknown>) {
   delete parsed.previousResponseId;
   return { parsed, decode(text: string, done: Extract<AdapterEvent, { type: "done" }>): AdapterEvent[] {
     try { validate(text); } catch { throw new BridgeError("Browser returned an invalid Hermes reply envelope", 502); }
-    const reply = JSON.parse(text);
+    const reply = parseChatGptStructuredJson(text) as { type: "message"; text: string } | { type: "tool_calls"; calls: { name: string; arguments: object }[] };
     // These are bridge cache counters, not measurements of ChatGPT's private backend cache.
     const terminal = { ...done, ...(done.usage ? { usage: {
       ...done.usage, cachedInputTokens: 0, cacheReadInputTokens: 0, cacheCreationInputTokens: 0,

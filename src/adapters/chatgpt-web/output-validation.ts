@@ -5,6 +5,39 @@ import { ChatGptWebAdapterError } from "./adapter-error";
 
 export type ChatGptStructuredOutputValidator = (answer: string) => void;
 
+const MARKDOWN_ESCAPES = new Set(["_", "*", "~", "#", "[", "]", "(", ")", ">", "+", "-", ".", "!", "|", "{", "}", "<"]);
+const JSON_ESCAPES = new Set(['"', "\\", "/", "b", "f", "n", "r", "t", "u"]);
+
+/** Undo only renderer-added Markdown escapes that are illegal in JSON strings. */
+export function parseChatGptStructuredJson(answer: string): unknown {
+  try { return JSON.parse(answer); } catch { /* normalize the rendered form below */ }
+  let normalized = "";
+  let inString = false;
+  for (let index = 0; index < answer.length; index++) {
+    const char = answer[index]!;
+    if (char === '"') {
+      inString = !inString;
+      normalized += char;
+      continue;
+    }
+    if (inString && char === "\\" && index + 1 < answer.length) {
+      const next = answer[index + 1]!;
+      if (JSON_ESCAPES.has(next)) {
+        normalized += char + next;
+        index++;
+        continue;
+      }
+      if (MARKDOWN_ESCAPES.has(next)) {
+        normalized += next;
+        index++;
+        continue;
+      }
+    }
+    normalized += char;
+  }
+  return JSON.parse(normalized);
+}
+
 function validationError(message: string): ChatGptWebAdapterError {
   return new ChatGptWebAdapterError(message, {
     status: 502,
@@ -47,7 +80,7 @@ export function createChatGptStructuredOutputValidator(
   return (answer: string): void => {
     let value: unknown;
     try {
-      value = JSON.parse(answer);
+      value = parseChatGptStructuredJson(answer);
     } catch {
       throw validationError(
         `ChatGPT Web returned malformed JSON for strict Codex output schema ${JSON.stringify(format.name)}`,

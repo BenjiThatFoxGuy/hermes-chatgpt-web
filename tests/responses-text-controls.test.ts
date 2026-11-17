@@ -3,7 +3,7 @@ import { ChatGptWebAdapterError } from "../src/adapters/chatgpt-web/adapter-erro
 import { ChatGptBrowserWorker, type BrowserTurn } from "../src/adapters/chatgpt-web/browser-worker";
 import { createChatGptWebAdapter } from "../src/adapters/chatgpt-web/index";
 import { CHATGPT_WEB_MODEL_ID } from "../src/adapters/chatgpt-web/model";
-import { createChatGptStructuredOutputValidator } from "../src/adapters/chatgpt-web/output-validation";
+import { createChatGptStructuredOutputValidator, parseChatGptStructuredJson } from "../src/adapters/chatgpt-web/output-validation";
 import { compileChatGptWebPrompt } from "../src/adapters/chatgpt-web/prompt";
 import { parseRequest } from "../src/responses/parser";
 import type { AdapterEvent, CodexProviderConfig } from "../src/types";
@@ -41,6 +41,8 @@ test("strict JSON validation accepts only the exact full schema-conforming answe
     },
   })!;
   expect(() => validate('{"ok":true,"count":2}')).not.toThrow();
+  expect(parseChatGptStructuredJson('{"text":"CHATGPT\\_WEB\\_LIVE\\_OK"}')).toEqual({ text: "CHATGPT_WEB_LIVE_OK" });
+  expect(parseChatGptStructuredJson('{"text":"literal\\\\_underscore"}')).toEqual({ text: "literal\\_underscore" });
   for (const invalid of [
     'prefix {"ok":true,"count":2}',
     '```json\n{"ok":true,"count":2}\n```',

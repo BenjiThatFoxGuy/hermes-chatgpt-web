@@ -26,7 +26,7 @@ function fixture(answer: unknown, observed: CodexParsedRequest[] = []): Provider
     observed.push(parsed);
     expect(incoming.headers.get("authorization")).toBeNull();
     emit({ type: "heartbeat" });
-    const text = JSON.stringify(answer);
+    const text = typeof answer === "string" ? answer : JSON.stringify(answer);
     emit({ type: "text_delta", text: text.slice(0, 15) });
     emit({ type: "text_delta", text: text.slice(15) });
     emit({ type: "done", usage: { inputTokens: 10, outputTokens: 5, estimated: true } });
@@ -60,6 +60,16 @@ test("HTTP Responses round trip exposes a host tool call and replays canonical h
   expect(result.output[0].content[0].text).toBe("File contents received");
   expect(nextObserved[0]!.context.messages.some(m => m.role === "toolResult" && m.toolCallId === json.output[0].call_id && m.content === "Actual file content")).toBe(true);
 });
+
+test("rendered Markdown escapes inside a JSON envelope are normalized", async () => {
+  const handler = createHermesHandler({ apiKey: key, capabilities,
+    adapter: fixture('{"type":"message","text":"CHATGPT\\_WEB\\_LIVE\\_OK"}') });
+  const response = await handler(request({}));
+  expect(response.status).toBe(200);
+  const json = await response.json() as any;
+  expect(json.output[0].content[0].text).toBe("CHATGPT_WEB_LIVE_OK");
+});
+
 
 test("real browser boundary compiles full history without Codex identities or MCP execution", async () => {
   const turns: BrowserTurn[] = [];
