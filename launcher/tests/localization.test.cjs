@@ -141,8 +141,8 @@ test("first-time language selection and Settings explain the embedded browser re
   assert.match(english.embeddedBrowserLanguageHint, /ChatGPT may use its own saved language setting/);
   for (const language of Object.keys(languages)) {
     const copy = copyFor(language);
-    assert.ok(copy.chooseLanguageHint.includes("Codex Web GPT"), language);
-    assert.ok(copy.embeddedBrowserLanguageHint.includes("Codex Web GPT"), language);
+    assert.ok(copy.chooseLanguageHint.includes("Hermes Web GPT"), language);
+    assert.ok(copy.embeddedBrowserLanguageHint.includes("Hermes Web GPT"), language);
     assert.ok(copy.embeddedBrowserLanguageHint.includes("ChatGPT"), language);
     if (language !== "en") {
       assert.notEqual(copy.chooseLanguageHint, english.chooseLanguageHint);

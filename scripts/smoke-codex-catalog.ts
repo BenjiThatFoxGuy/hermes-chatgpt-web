@@ -93,8 +93,7 @@ try {
     (sourceCatalog.models as Array<{ slug: string; visibility: string; supported_in_api: boolean; priority?: number }>)
       .filter(model => model.supported_in_api && model.visibility === "list")
       .toSorted((left, right) => (left.priority ?? Number.MAX_SAFE_INTEGER) - (right.priority ?? Number.MAX_SAFE_INTEGER))[0]?.slug,
-    ...CHATGPT_WEB_MODEL_ROUTES.slice(1).map(route => route.slug),
-    "chatgpt-web/gpt-5.6-sol-instant",
+    ...CHATGPT_WEB_MODEL_ROUTES.map(route => route.slug),
   ];
   if (JSON.stringify(spawnOverrides) !== JSON.stringify(expectedSpawnOverrides)) {
     throw new Error(`Codex did not preserve the bounded V1 subagent roster: ${JSON.stringify(spawnOverrides)}`);

@@ -6,7 +6,7 @@ editing Codex configuration, or opening a new issue.
 ## The first five minutes
 
 1. Install the [latest release](https://github.com/miuuyy/codex-chatgpt-web/releases/latest). Quit
-   **Codex Web GPT** before running the installer again; updating preserves its private ChatGPT
+   **Hermes Web GPT** before running the installer again; updating preserves its private ChatGPT
    profile and launcher configuration.
 2. In **Setup**, confirm that ChatGPT sign-in, the browser smoke test, and **Install into Codex**
    are green. The installation button says **Install models**, or **Reinstall** after setup.
@@ -84,17 +84,17 @@ port reservations based only on the EACCES message.
 
 The launcher deliberately refuses to overwrite a route changed by another tool. Only one program
 can own Codex's `openai_base_url` at a time. Wrappers and routers such as OpenCodex, Headroom,
-OmniRoute, Codex++, CC Switch, or a manually configured provider may replace the Codex Web GPT route
+OmniRoute, Codex++, CC Switch, or a manually configured provider may replace the Hermes Web GPT route
 for the whole installation or only for the process they launch.
 
 Choose one route owner:
 
-- To use Codex Web GPT, disable the other wrapper's provider/proxy mode, click
+- To use Hermes Web GPT, disable the other wrapper's provider/proxy mode, click
   **Setup → Install into Codex → Reinstall**, fully restart Codex, and start Codex directly rather
   than through the wrapper command.
 - A tool may remain enabled only as an MCP integration if it does not replace `openai_base_url`.
 - To switch away cleanly, use **Settings → Remove Codex integration** first. This restores the exact
-  route that existed before Codex Web GPT was installed.
+  route that existed before Hermes Web GPT was installed.
 
 Do not hand-edit the launcher's route journal. It exists so setup and removal can fail closed instead
 of silently destroying another provider's configuration. First-class external-router composition is
@@ -160,7 +160,7 @@ If Codex shows **You're out of Codex and Work usage** and disables Send even wit
 selected, sign out of **Codex** and sign in with another account you own that can send messages.
 A free account with Codex access and no blocking usage banner can be used.
 
-Keep your intended ChatGPT account signed in inside **Codex Web GPT**; these are separate sessions.
+Keep your intended ChatGPT account signed in inside **Hermes Web GPT**; these are separate sessions.
 Changing the Codex login does not reset or increase the launcher's ChatGPT Web account limits.
 
 ## Encrypted content cannot be verified after switching models
@@ -491,13 +491,13 @@ does not provide credentials or additional allowance for native Image Gen.
 
 ## Update, repair, and remove
 
-To update, quit **Codex Web GPT** and run the same installer command from the README. The installer
+To update, quit **Hermes Web GPT** and run the same installer command from the README. The installer
 replaces the application and runtime while preserving the launcher configuration and private
 ChatGPT profile.
 
 On Linux, automatic updates require the installed launcher created by `install-launcher.sh`.
 If Update reports that the stable wrapper is missing, quit the app, run the installer command
-from the README, and reopen Codex Web GPT from the applications menu. This preserves settings and browser data.
+from the README, and reopen Hermes Web GPT from the applications menu. This preserves settings and browser data.
 
 To repair a valid integration, open **Setup → Install into Codex**, click **Reinstall** once,
 and fully restart Codex. Avoid deleting configuration until **Run doctor** and a safe log identify

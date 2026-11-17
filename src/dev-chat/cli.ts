@@ -31,7 +31,7 @@ import {
 } from "./profile";
 import { DEV_CONFIG_PURPOSE, DEV_LAUNCHER_PROFILE } from "./constants";
 
-const DEV_HELP = `Codex Web GPT DEV chat
+const DEV_HELP = `Hermes Web GPT DEV chat
 
 Usage:
   codex-chatgpt-web dev launcher
@@ -51,7 +51,7 @@ Interactive commands:
   /fill TOKENS         Append deterministic inert context without opening ChatGPT
   /send-fill TOKENS    Send deterministic inert text through the live browser now
   /compact             Run the real browser compaction path now
-  /model MODEL         Select gpt-6-sol-instant, gpt-6-sol, gpt-6-pro, gpt-5.6-luna, gpt-5.6-sol-instant, gpt-5.6-sol, gpt-5.6-pro, or zero-risk
+  /model MODEL         Select gpt-6-sol, gpt-6-pro, gpt-5.6-luna, gpt-5.6-sol, gpt-5.6-pro, or zero-risk
   /reset yes           Clear this named DEV chat and create a new thread identity
   /help                Show this command list
   /exit                Exit
@@ -153,7 +153,7 @@ function printHeader(
   mode: "browser-only" | "full",
   biggerContext: boolean,
 ): void {
-  stdout.write(`${bold("Codex Web GPT DEV")} · ${created ? "created" : "continued"} chat ${cyan(state.name)}\n`);
+  stdout.write(`${bold("Hermes Web GPT DEV")} · ${created ? "created" : "continued"} chat ${cyan(state.name)}\n`);
   stdout.write(`model ${state.model} · ${mode === "full" ? "tools explicitly simulated" : "browser-only, no outer tools"} · live launcher browser\n`);
   stdout.write(`context ${statusLine(status)}\n`);
   if (biggerContext) {

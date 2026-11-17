@@ -11,7 +11,7 @@ Use them proactively when that broader view would help. You do not need a precis
 
 ## Select the researcher
 
-- Inspect the available sub-agent tool and explicitly select **ChatGPT 6 Pro**. In Codex Web GPT, use `model: "chatgpt-web/gpt-6-pro"`, `reasoning_effort: "max"`, and `fork_context: false`. Use the general-purpose agent role so a coding-only role does not narrow the investigation.
+- Inspect the available sub-agent tool and explicitly select **ChatGPT 6 Pro**. In Hermes Web GPT, use `model: "chatgpt-web/gpt-6-pro"`, `reasoning_effort: "max"`, and `fork_context: false`. Use the general-purpose agent role so a coding-only role does not narrow the investigation.
 - Start with no inherited conversation history. Give the researcher a self-contained assignment instead. Fork history only if the user explicitly asks for it.
 - Confirm the requested model and effort are available. If the launch is rejected or the model is unavailable, explain that limitation; do not silently choose another model or create a separate user-owned chat as a substitute.
 - Run **no more than two Pro researchers at once** for the task. An agent that is quiet or waiting still occupies a slot. Do not have them spawn additional researchers.

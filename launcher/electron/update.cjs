@@ -222,7 +222,7 @@ function findMacApplication(root) {
 }
 
 function linuxUpdateInstallation() {
-  const guidance = "Quit Codex Web GPT, run install-launcher.sh from the README once, then reopen the installed app. Your settings and browser profile are preserved.";
+  const guidance = "Quit Hermes Web GPT, run install-launcher.sh from the README once, then reopen the installed app. Your settings and browser profile are preserved.";
   const target = process.env.CODEX_WEB_GPT_APPIMAGE?.trim()
     || process.env.APPIMAGE?.trim();
   if (!target || !path.isAbsolute(target)) {

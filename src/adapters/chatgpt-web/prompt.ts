@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { CHATGPT_CONNECTOR_NAME, ZERO_RISK_CHATGPT_CONNECTOR_NAME } from "../../config";
 import { selectedSkillFile, skillFileTokens, type ChatGptSkillFile } from "./skill-attachments";
 import {
-  CHATGPT_WEB_GPT6_INSTANT_BIGGER_CONTEXT_ERROR,
+  CHATGPT_WEB_UNSUPPORTED_BIGGER_CONTEXT_ERROR,
   CHATGPT_WEB_PLATFORM_RESERVE_TOKENS,
   chatGptWebImageTokenReserve,
   isChatGptWebZeroRiskBackendModel,
@@ -476,7 +476,7 @@ export function chatGptReadOnlyContextWarning(
     || (message.role === "user" && isReadableCompactionSummaryText(message.content))
   );
   const browserOnlyGuidance = !capabilities.localToolsEnabled
-    ? "\n>\n> **Action:** Open `MCP` in `Codex Web GPT` and connect the `Full` harness to give the selected ChatGPT Web model access to local tools."
+    ? "\n>\n> **Action:** Open `MCP` in `Hermes Web GPT` and connect the `Full` harness to give the selected ChatGPT Web model access to local tools."
     : "";
   if (hasLocalEvidence) {
     return `> **Local tools unavailable**\n>\n> \`${label}\` cannot access the local Codex computer in this turn. It receives the complete accumulated task context, including earlier tool results or their compaction summary and attachments, but it cannot read or modify local files further. ChatGPT-native capabilities such as web search remain available when the product provides them.${browserOnlyGuidance}`;
@@ -518,7 +518,7 @@ export function compileChatGptWebPrompt(
     throw new Error("Bigger Context uses native compaction, not Luna rolling checkpoints");
   }
   if (multipartEnabled && !supportsChatGptWebBiggerContext(parsed.modelId, mode.effort, parsed._chatgptModelFamily)) {
-    throw new Error(CHATGPT_WEB_GPT6_INSTANT_BIGGER_CONTEXT_ERROR);
+    throw new Error(CHATGPT_WEB_UNSUPPORTED_BIGGER_CONTEXT_ERROR);
   }
   if (parsed.modelId === CHATGPT_WEB_LUNA_MODEL_ID && parsed._compactionRequest && !multipartEnabled) {
     throw new Error("ChatGPT Luna uses rolling checkpoints and does not accept a separate compaction turn");

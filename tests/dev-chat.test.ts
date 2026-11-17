@@ -187,7 +187,7 @@ test("coherent DEV MCP payloads are bounded, deterministic, and distinct", () =>
 });
 
 test("new DEV chats default to the cheapest account-supported browser model", () => {
-  expect(defaultDevChatModel({ ...defaultConfig("full"), solAvailable: true })).toBe("chatgpt-web/gpt-5.6-sol-instant");
+  expect(defaultDevChatModel({ ...defaultConfig("full"), solAvailable: true })).toBe("chatgpt-web/gpt-5.6-sol");
   expect(defaultDevChatModel({ ...defaultConfig("full"), solAvailable: false })).toBe("chatgpt-web/gpt-5.6-luna");
   expect(DEV_CHAT_MODELS).toContain("chatgpt-web/think");
   expect(defaultDevChatModel({
@@ -283,7 +283,6 @@ test("Bigger Context exposes bounded full-history windows for Sol and Luna", asy
   expect(biggerStatus.percent).toBe(Math.round((biggerStatus.inputTokens / 285_000) * 1_000) / 10);
   for (const [model, contextWindow, autoCompactTokenLimit] of [
     ["chatgpt-web/gpt-6-sol", 240_000, 220_000],
-    ["chatgpt-web/gpt-6-sol-instant", 111_193, 95_000],
   ] as const) {
     const state = bigger.open(model.split("/")[1]!, model).state;
     expect(bigger.status(state)).toMatchObject({ contextWindow, autoCompactTokenLimit });

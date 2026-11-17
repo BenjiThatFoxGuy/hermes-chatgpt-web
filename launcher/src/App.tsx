@@ -173,7 +173,7 @@ function Onboarding({
   snapshot: LauncherSnapshot;
   updateState: (state: LauncherState) => void;
 }) {
-  const [stage, setStage] = useState<"language" | "interaction" | "support">(
+  const [stage, setStage] = useState<"language" | "interaction">(
     snapshot.state.language ? "interaction" : "language",
   );
   const [selectedLanguage, setSelectedLanguage] = useState<Language>(language);
@@ -183,8 +183,7 @@ function Onboarding({
   const [busy, setBusy] = useState(false);
   const localized = copyFor(selectedLanguage);
   const isLanguage = stage === "language";
-  const isInteraction = stage === "interaction";
-  const stageIndex = isLanguage ? 0 : isInteraction ? 1 : 2;
+  const stageIndex = isLanguage ? 0 : 1;
 
   const chooseLanguage = async () => {
     setBusy(true);
@@ -192,18 +191,6 @@ function Onboarding({
     try {
       updateState(await api!.setLanguage(selectedLanguage));
       setStage("interaction");
-    } catch (cause) {
-      setError(messageOf(cause));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const openSocial = async (target: "github" | "x") => {
-    setBusy(true);
-    setError(null);
-    try {
-      updateState(await api!.openSocial(target));
     } catch (cause) {
       setError(messageOf(cause));
     } finally {
@@ -250,12 +237,8 @@ function Onboarding({
           transition={PANEL_TRANSITION}
         >
           <span className="welcome-kicker">0{stageIndex + 1}</span>
-          <h1>{isLanguage
-            ? localized.chooseLanguage
-            : isInteraction ? localized.interactionMode : localized.supportTitle}</h1>
-          <p>{isLanguage
-            ? localized.chooseLanguageHint
-            : isInteraction ? localized.interactionModeOnboardingBody : localized.supportBody}</p>
+          <h1>{isLanguage ? localized.chooseLanguage : localized.interactionMode}</h1>
+          <p>{isLanguage ? localized.chooseLanguageHint : localized.interactionModeOnboardingBody}</p>
 
           {isLanguage ? (
             <div className="welcome-options" role="radiogroup" aria-label={localized.chooseLanguage}>
@@ -270,7 +253,7 @@ function Onboarding({
                 />
               ))}
             </div>
-          ) : isInteraction ? (
+          ) : (
             <InteractionModePicker
               className="welcome-interaction-mode-picker"
               copy={localized}
@@ -278,23 +261,6 @@ function Onboarding({
               mode={selectedInteractionMode}
               onChange={setSelectedInteractionMode}
             />
-          ) : (
-            <div className="welcome-options">
-              <WelcomeAction
-                complete={snapshot.state.githubOpened}
-                disabled={busy}
-                icon="github"
-                label={snapshot.state.githubOpened ? localized.starred : localized.star}
-                onClick={() => openSocial("github")}
-              />
-              <WelcomeAction
-                complete={snapshot.state.xOpened}
-                disabled={busy}
-                icon="x"
-                label={snapshot.state.xOpened ? localized.followed : localized.follow}
-                onClick={() => openSocial("x")}
-              />
-            </div>
           )}
         </motion.section>
       </AnimatePresence>
@@ -304,15 +270,15 @@ function Onboarding({
           {!isLanguage ? (
             <button
               className="text-button"
-              onClick={() => setStage(isInteraction ? "language" : "interaction")}
+              onClick={() => setStage("language")}
               type="button"
             >
               {localized.previous}
             </button>
           ) : null}
         </div>
-        <div className="welcome-progress" aria-label={`${stageIndex + 1} / 3`}>
-          {[0, 1, 2].map(index => (
+        <div className="welcome-progress" aria-label={`${stageIndex + 1} / 2`}>
+          {[0, 1].map(index => (
             <span
               className={index < stageIndex ? "is-complete" : index === stageIndex ? "is-active" : ""}
               key={index}
@@ -320,12 +286,10 @@ function Onboarding({
           ))}
         </div>
         <PrimaryButton
-          disabled={busy || (stage === "support" && (!snapshot.state.githubOpened || !snapshot.state.xOpened))}
-          onClick={isLanguage
-            ? chooseLanguage
-            : isInteraction ? () => setStage("support") : finish}
+          disabled={busy}
+          onClick={isLanguage ? chooseLanguage : finish}
         >
-          {stage === "support" ? localized.finishWelcome : localized.continue}
+          {localized.continue}
         </PrimaryButton>
       </footer>
     </motion.main>
@@ -558,18 +522,6 @@ function LauncherShell({
                 <BrandMark small />
                 <strong>{copy.product}</strong>
                 {devProfile ? <em className="dev-profile-badge">{copy.devBadge}</em> : null}
-              </div>
-              <div className="sidebar-brand-actions">
-                <IconButton
-                  icon="github"
-                  label="GitHub"
-                  onClick={() => void api!.openExternal(snapshot.urls.github).catch((cause) => setError(messageOf(cause)))}
-                />
-                <IconButton
-                  icon="x"
-                  label="X"
-                  onClick={() => void api!.openExternal(snapshot.urls.x).catch((cause) => setError(messageOf(cause)))}
-                />
               </div>
             </div>
 
@@ -2476,33 +2428,6 @@ function WelcomeOption({
       <strong>{label}</strong>
       <small>{detail}</small>
       {active ? <Icon name="check" /> : null}
-    </button>
-  );
-}
-
-function WelcomeAction({
-  complete,
-  disabled,
-  icon,
-  label,
-  onClick,
-}: {
-  complete: boolean;
-  disabled?: boolean;
-  icon: "github" | "x";
-  label: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      className={`welcome-option is-social${complete ? " is-complete" : ""}`}
-      disabled={disabled}
-      onClick={onClick}
-      type="button"
-    >
-      <span><Icon name={icon} /></span>
-      <strong>{label}</strong>
-      <Icon name={complete ? "check" : "external"} />
     </button>
   );
 }

@@ -793,7 +793,7 @@ test.each(["low", "high"] as const)("GPT-6 Plus stages High but keeps the Instan
     await expect(worker.runBrowserTurn({
       traceId: "six_context", modelId: CHATGPT_WEB_MODEL_ID, modelFamily: "6", reasoning, capabilities,
       prepare: async () => prepared, onTextDelta() {}, onReasoningSummary() {},
-    })).rejects.toThrow(reasoning === "low" ? "GPT-6 Instant uses standard context" : "Test reached browser acquisition");
+    })).rejects.toThrow(reasoning === "low" ? "This model and effort use standard context. Select Medium, High or an available Extra High or Pro mode to use Bigger Context." : "Test reached browser acquisition");
     expect(browserStages).toBe(reasoning === "low" ? 0 : 1);
     expect(released).toBeTrue();
   } finally { rmSync(root, { recursive: true, force: true }); }
@@ -3541,7 +3541,7 @@ test("GPT-6 staged input enforces its measured account and effort ceiling before
   }
   expect(() => assertChatGptWebMultipartInputWithinLimits(
     100_000, 40_000, "gpt-5.6-sol", "low", pro, 200_000, 6, undefined, "6",
-  )).toThrow("GPT-6 Instant uses standard context");
+  )).toThrow("This model and effort use standard context. Select Medium, High or an available Extra High or Pro mode to use Bigger Context.");
   expect(() => assertChatGptWebMultipartInputWithinLimits(
     333_578, 60_000, "gpt-5.6-sol", "high", pro, 250_000, 6, undefined, "5.6",
   )).not.toThrow();

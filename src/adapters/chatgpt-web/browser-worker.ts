@@ -99,7 +99,7 @@ import {
 import {
   CHATGPT_LUNA_BROWSER_INPUT_TOKEN_BUDGET,
   CHATGPT_WEB_PLATFORM_RESERVE_TOKENS,
-  CHATGPT_WEB_GPT6_INSTANT_BIGGER_CONTEXT_ERROR,
+  CHATGPT_WEB_UNSUPPORTED_BIGGER_CONTEXT_ERROR,
   resolveChatGptWebContextLimits,
   resolveChatGptWebMessageTokenBudget,
   resolveChatGptWebStagingTokenBudget,
@@ -798,7 +798,7 @@ export function assertChatGptWebMultipartInputWithinLimits(
     throw new Error(`ChatGPT Bigger Context limit is not defined for model: ${modelId}`);
   }
   if (!supportsChatGptWebBiggerContext(modelId, effort, modelFamily)) {
-    throw new Error(CHATGPT_WEB_GPT6_INSTANT_BIGGER_CONTEXT_ERROR);
+    throw new Error(CHATGPT_WEB_UNSUPPORTED_BIGGER_CONTEXT_ERROR);
   }
   const baseContextWindow = resolveChatGptWebMessageTokenBudget(modelId, effort, capabilities)
     + CHATGPT_WEB_PLATFORM_RESERVE_TOKENS + 1;

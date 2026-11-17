@@ -151,7 +151,7 @@ test("GPT-6 compaction respects the selected account and effort", () => {
         expect(estimateChatGptWebUsage(parsed, { answer: "summary" }, caps, true))
           .toEqual(estimateChatGptWebUsage(parsed, { answer: "summary" }, caps, false));
         expect(() => compileChatGptWebPrompt(parsed, caps, undefined, { experimentalMultipartParts: 6 }))
-          .toThrow("GPT-6 Instant uses standard context");
+          .toThrow("This model and effort use standard context. Select Medium, High or an available Extra High or Pro mode to use Bigger Context.");
       }
     }
   }
