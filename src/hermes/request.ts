@@ -39,7 +39,7 @@ const requestSchema = z.strictObject({
   include: z.array(z.literal("reasoning.encrypted_content")).max(1).optional(),
   prompt_cache_key: z.string().max(512).optional(),
   prompt_cache_retention: z.enum(["in-memory", "24h"]).optional(),
-  reasoning: z.strictObject({ effort: z.string().optional(), summary: z.enum(["none", "auto"]).optional() }).nullable().optional(),
+  reasoning: z.strictObject({ effort: z.string().optional(), summary: z.enum(["none", "auto", "medium"]).optional() }).nullable().optional(),
   text: z.strictObject({ verbosity: z.enum(["low", "medium", "high"]).optional(),
     format: z.union([schemaFormat, z.strictObject({ type: z.literal("text") })]).optional(),
   }).optional(),
