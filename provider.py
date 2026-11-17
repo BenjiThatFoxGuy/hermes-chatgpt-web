@@ -32,12 +32,6 @@ class ChatGPTWebProfile(ProviderProfile):
             base_url="http://127.0.0.1:8766/v1",
             supports_vision=True,
             supports_streaming=True,
-            fallback_models=(
-                "chatgpt-web/gpt-6-sol-instant",
-                "chatgpt-web/gpt-6-sol",
-                "chatgpt-web/gpt-5.6-sol-instant",
-                "chatgpt-web/gpt-5.6-sol",
-            ),
             ambient_credentials=True,
         )
 
