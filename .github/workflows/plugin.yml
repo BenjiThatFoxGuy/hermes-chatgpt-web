@@ -33,6 +33,8 @@ jobs:
         run: bun run typecheck
       - name: Test Hermes bridge
         run: bun test tests/hermes-bridge.test.ts
+      - name: Regress upstream protocol and browser contracts
+        run: bun test tests/bridge-platform.test.ts tests/responses-agent-message.test.ts tests/responses-lite-tools.test.ts tests/responses-text-controls.test.ts tests/model-contract.test.ts tests/prompt-contract.test.ts tests/prompt-history-metadata.test.ts tests/browser-worker-contract.test.ts tests/http-body.test.ts
       - name: Prepare pinned Hermes contract
         if: ${{ !cancelled() }}
         run: |
