@@ -8,8 +8,6 @@ import shutil
 import subprocess
 import sys
 
-import pytest
-
 ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -19,6 +17,7 @@ def load_plugin():
     spec = importlib.util.spec_from_file_location(
         "_chatgpt_web_contract", path, submodule_search_locations=[str(ROOT)]
     )
+    assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
@@ -66,9 +65,14 @@ def test_installer_flat_layout_is_discovered(tmp_path):
 import json
 from providers import get_provider_profile
 from hermes_cli.providers import determine_api_mode
+from hermes_cli.runtime_provider import resolve_runtime_provider
 p = get_provider_profile("chatgpt-web")
 assert p is not None
 assert determine_api_mode(p.name, p.base_url) == "codex_responses"
+runtime = resolve_runtime_provider(requested="chatgpt-web", target_model="chatgpt-web/gpt-6-sol")
+assert runtime["provider"] == "chatgpt-web"
+assert runtime["api_mode"] == "codex_responses"
+assert runtime["base_url"] == p.base_url
 print(json.dumps({"name": p.name, "api_mode": p.api_mode}))
 '''], env=env, text=True, capture_output=True, timeout=30)
     assert result.returncode == 0, result.stderr
