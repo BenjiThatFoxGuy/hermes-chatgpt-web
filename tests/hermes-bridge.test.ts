@@ -2,6 +2,8 @@ import { expect, test } from "bun:test";
 import { createHermesHandler } from "../src/hermes/handler";
 import type { CodexParsedRequest, AdapterEvent } from "../src/types";
 import type { ProviderAdapter } from "../src/adapters/base";
+import { createHermesBrowserAdapter } from "../src/hermes/browser";
+import type { BrowserTurn } from "../src/adapters/chatgpt-web/browser-worker";
 
 const model = "chatgpt-web/gpt-6-sol";
 const capabilities = { solAvailable: true, proAvailable: false, extraHighAvailable: false };
@@ -54,3 +56,69 @@ test("HTTP Responses round trip exposes a host tool call and replays canonical h
   expect(result.output[0].content[0].text).toBe("File contents received");
   expect(nextObserved[0]!.context.messages.some(m => m.role === "toolResult" && m.toolCallId === json.output[0].call_id && m.content === "Actual file content")).toBe(true);
 });
+
+test("real browser boundary compiles full history without Codex identities or MCP execution", async () => {
+  const turns: BrowserTurn[] = [];
+  const worker = { async run(turn: BrowserTurn) {
+    turns.push(turn);
+    const prompt = await turn.prepare();
+    expect(prompt.turnToken).toBeUndefined();
+    expect(prompt.images).toHaveLength(1);
+    expect(prompt.text).toContain("hermes_host_reply");
+    expect(prompt.text).toContain("read_file");
+    expect(turn.capabilities.localToolsEnabled).toBe(false);
+    expect(turn.retainConversation).not.toBe(true);
+    expect(turn.nativeConnector).not.toBe(true);
+    expect(turn.conversationKey).toBeUndefined();
+    const answer = '{"type":"message","text":"Image received"}';
+    turn.onTextDelta(answer);
+    prompt.release();
+    return answer;
+  } };
+  const adapter = createHermesBrowserAdapter({ adapter: "chatgpt-web", baseUrl: "https://chatgpt.com",
+    chatgptWeb: { ...capabilities, localToolsEnabled: true } }, worker);
+  const handler = createHermesHandler({ apiKey: key, capabilities, adapter });
+  for (let i = 0; i < 2; i++) {
+    const res = await handler(request({ tools: [tool], input: [{ role: "user", content: [
+      { type: "input_text", text: "Inspect" }, { type: "input_image", image_url: "data:image/png;base64,aGVsbG8=" },
+    ] }] }));
+    expect(res.status).toBe(200);
+    expect((await res.json() as any).output[0].content[0].text).toBe("Image received");
+  }
+  expect(turns[0]!.traceId).not.toBe(turns[1]!.traceId);
+  expect(turns[0]!.modelFamily).toBe("6");
+});
+
+test("buffered envelope SSE emits standard function call events with stable call IDs", async () => {
+  const handler = createHermesHandler({ apiKey: key, capabilities, adapter: fixture({ type: "tool_calls", calls: [{ name: "read_file", arguments: { path: "/a" } }] }) });
+  const res = await handler(request({ stream: true, tools: [tool] }));
+  expect(res.headers.get("content-type")).toContain("text/event-stream");
+  const frames = (await res.text()).split("\n\n").flatMap(frame => {
+    const data = frame.split("\n").find(line => line.startsWith("data: "))?.slice(6);
+    return data && data !== "[DONE]" ? [JSON.parse(data)] : [];
+  });
+  expect(frames[0].type).toBe("response.created");
+  const added = frames.find(f => f.type === "response.output_item.added" && f.item.type === "function_call");
+  const ended = frames.find(f => f.type === "response.output_item.done" && f.item.type === "function_call");
+  expect(added.item.call_id).toBe(ended.item.call_id);
+  expect(ended.item.arguments).toBe('{"path":"/a"}');
+  const completed = frames.find(f => f.type === "response.completed");
+  expect(completed.response.output[0].call_id).toBe(ended.item.call_id);
+});
+
+test("canceling a streaming response aborts the underlying browser turn", async () => {
+  let started!: () => void;
+  const ready = new Promise<void>(resolve => { started = resolve; });
+  let aborted!: () => void;
+  const canceled = new Promise<void>(resolve => { aborted = resolve; });
+  const adapter: ProviderAdapter = { name: "pending-browser", async runTurn(_parsed, incoming) {
+    started();
+    await new Promise<void>(resolve => incoming.abortSignal!.addEventListener("abort", () => { aborted(); resolve(); }, { once: true }));
+  } };
+  const handler = createHermesHandler({ apiKey: key, capabilities, adapter });
+  const res = await handler(request({ stream: true }));
+  await ready;
+  await res.body!.cancel();
+  await canceled;
+});
+
