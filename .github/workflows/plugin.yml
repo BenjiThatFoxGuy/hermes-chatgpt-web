@@ -22,11 +22,25 @@ jobs:
           echo "HERMES_HOME=$RUNNER_TEMP/hermes-plugin-home" >> "$GITHUB_ENV"
           echo "TMPDIR=$RUNNER_TEMP" >> "$GITHUB_ENV"
       - uses: actions/checkout@v6
+      - name: Select Python
+        id: python-version
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
       - name: Check runner Python
         run: python3 --version
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.4.0
+      - name: Restore Bun dependency caches
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.bun/install/cache
+            node_modules
+          key: ${{ runner.os }}-bun-1.4.0-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-1.4.0-
       - name: Install bridge dependencies
         run: bun install --frozen-lockfile
       - name: Check upstream bridge types
@@ -35,8 +49,17 @@ jobs:
         run: bun test tests/hermes-bridge.test.ts
       - name: Regress upstream protocol and browser contracts
         run: bun test tests/bridge-platform.test.ts tests/responses-agent-message.test.ts tests/responses-lite-tools.test.ts tests/responses-text-controls.test.ts tests/model-contract.test.ts tests/prompt-contract.test.ts tests/prompt-history-metadata.test.ts tests/browser-worker-contract.test.ts tests/http-body.test.ts
+      - name: Restore pinned Hermes and Python environment
+        id: hermes-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ runner.temp }}/plugin-venv
+            ${{ runner.temp }}/hermes-contract
+            ~/.cache/pip
+          key: ${{ runner.os }}-python-${{ steps.python-version.outputs.version }}-hermes-ae2a81ccc00e9b7c06301523e5bb09608397149c-v1
       - name: Prepare pinned Hermes contract
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.hermes-cache.outputs.cache-hit != 'true' }}
         run: |
           python3 -m venv "$RUNNER_TEMP/plugin-venv"
           "$RUNNER_TEMP/plugin-venv/bin/pip" install pytest httpx openai pyyaml packaging python-dotenv rich tenacity tiktoken fire prompt-toolkit pydantic requests ruamel.yaml truststore tomli-w
