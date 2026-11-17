@@ -35,7 +35,11 @@ const requestSchema = z.strictObject({
   instructions: z.string().nullable().optional(), tools: z.array(tool).max(128).optional(),
   tool_choice: choice.optional(), parallel_tool_calls: z.boolean().optional(), stream: z.boolean().optional(),
   store: z.literal(false).optional(),
-  reasoning: z.strictObject({ effort: z.string().optional(), summary: z.literal("none").optional() }).nullable().optional(),
+  // Optional enrichment/routing hints, not promises of encrypted replay or caching.
+  include: z.array(z.literal("reasoning.encrypted_content")).max(1).optional(),
+  prompt_cache_key: z.string().max(512).optional(),
+  prompt_cache_retention: z.enum(["in-memory", "24h"]).optional(),
+  reasoning: z.strictObject({ effort: z.string().optional(), summary: z.enum(["none", "auto"]).optional() }).nullable().optional(),
   text: z.strictObject({ verbosity: z.enum(["low", "medium", "high"]).optional(),
     format: z.union([schemaFormat, z.strictObject({ type: z.literal("text") })]).optional(),
   }).optional(),
@@ -74,5 +78,12 @@ export function validateRequest(body: unknown): Record<string, unknown> {
       results.add(item.call_id);
     }
   }
-  return data as Record<string, unknown>;
+  // Do not leak routing keys into browser prompts or manufacture replayable reasoning.
+  // Response headers explicitly advertise that these optional enrichments are unavailable.
+  const { include: _include, prompt_cache_key: _cacheKey, prompt_cache_retention: _retention, ...semantic } = data;
+  if (semantic.reasoning?.summary === "auto") {
+    const { summary: _summary, ...reasoning } = semantic.reasoning;
+    semantic.reasoning = reasoning;
+  }
+  return semantic as Record<string, unknown>;
 }

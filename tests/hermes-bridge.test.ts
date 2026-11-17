@@ -322,6 +322,7 @@ test.each([
     const output = await response.text();
     expect(output).toContain("Compatible reply");
     expect(output).not.toContain("encrypted_content");
+    if (!stream) expect(JSON.parse(output).usage.input_tokens_details.cached_tokens).toBe(0);
     expect(observed.at(-1)!._rawBody).toBeUndefined();
     expect(observed.at(-1)!.options.promptCacheKey).toBeUndefined();
   }

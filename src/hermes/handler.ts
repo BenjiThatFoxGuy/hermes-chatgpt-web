@@ -8,7 +8,12 @@ import { BridgeError, prepareTurn } from "./envelope";
 import { validateRequest } from "./request";
 
 export const DEFAULT_MAX_BODY_BYTES = 8 * 1024 * 1024;
-const headers = { "Cache-Control": "no-store", "x-should-retry": "false", "X-Content-Type-Options": "nosniff" };
+const headers = {
+  "Cache-Control": "no-store", "x-should-retry": "false", "X-Content-Type-Options": "nosniff",
+  "x-chatgpt-web-prompt-cache": "unsupported",
+  "x-chatgpt-web-reasoning-state": "unavailable",
+  "x-chatgpt-web-reasoning-summary": "unavailable",
+};
 const json = (body: unknown, status = 200) => Response.json(body, { status, headers });
 const loopback = (hostname: string) => ["127.0.0.1", "localhost", "[::1]"].includes(hostname);
 

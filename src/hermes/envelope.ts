@@ -58,14 +58,18 @@ export function prepareTurn(body: Record<string, unknown>) {
   return { parsed, decode(text: string, done: Extract<AdapterEvent, { type: "done" }>): AdapterEvent[] {
     try { validate(text); } catch { throw new BridgeError("Browser returned an invalid Hermes reply envelope", 502); }
     const reply = JSON.parse(text);
+    // These are bridge cache counters, not measurements of ChatGPT's private backend cache.
+    const terminal = { ...done, ...(done.usage ? { usage: {
+      ...done.usage, cachedInputTokens: 0, cacheReadInputTokens: 0, cacheCreationInputTokens: 0,
+    } } : {}) };
     if (reply.type === "message") {
       try { callerValidator?.(reply.text); } catch { throw new BridgeError("Browser answer violates the caller output schema", 502); }
-      return [{ type: "text_delta", text: reply.text }, { ...done, endTurn: true, stopReason: "stop" }];
+      return [{ type: "text_delta", text: reply.text }, { ...terminal, endTurn: true, stopReason: "stop" }];
     }
     return [ ...reply.calls.flatMap((call: { name: string; arguments: object }): AdapterEvent[] => [
       { type: "tool_call_start", id: `call_${randomUUID().replaceAll("-", "")}`, name: call.name },
       { type: "tool_call_delta", arguments: JSON.stringify(call.arguments) },
       { type: "tool_call_end" },
-    ]), { ...done, endTurn: false, stopReason: "tool_use" } ];
+    ]), { ...terminal, endTurn: false, stopReason: "tool_use" } ];
   } };
 }
