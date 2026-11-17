@@ -90,6 +90,70 @@ export function createHermesHandler(options: HermesHandlerOptions) {
           })),
         });
       }
+      if (url.pathname === "/v1/chat/completions") {
+        if (request.method !== "POST") throw new BridgeError("Method not allowed", 405);
+        const chatBody = await readBody(request, maxBody) as Record<string, unknown>;
+        const model = chatBody.model as string;
+        if (!model || !routes.some(route => route.slug === model)) throw new BridgeError("Model is not available in the configured browser account");
+        const messages = chatBody.messages as Array<{ role: string; content: unknown }>;
+        if (!Array.isArray(messages) || !messages.length) throw new BridgeError("messages array is required");
+        // Convert chat messages to Responses-API input items.
+        const input: Array<{ role: string; content: string }> = [];
+        let instructions: string | undefined;
+        for (const msg of messages) {
+          const text = typeof msg.content === "string" ? msg.content
+            : Array.isArray(msg.content) ? (msg.content as Array<{ type?: string; text?: string }>).filter(p => p.type === "text" || !p.type).map(p => p.text ?? "").join("") : "";
+          if (msg.role === "system" || msg.role === "developer") { instructions = (instructions ? instructions + "\n" : "") + text; }
+          else { input.push({ role: msg.role, content: text }); }
+        }
+        // Build a minimal Responses body and run through the existing pipeline.
+        const responsesBody: Record<string, unknown> = {
+          model, input, stream: false,
+          ...(instructions ? { instructions } : {}),
+          ...(chatBody.temperature !== undefined ? {} : {}),
+        };
+        if (chatBody.reasoning_effort || (chatBody as any).reasoning?.effort) {
+          responsesBody.reasoning = { effort: (chatBody as any).reasoning?.effort ?? chatBody.reasoning_effort };
+        }
+        const validated = validateRequest(responsesBody);
+        let route;
+        try { route = requireChatGptWebModelRoute(model, options.capabilities, (validated.reasoning as { effort?: string } | null)?.effort); }
+        catch { throw new BridgeError("Model or reasoning effort is unavailable for the configured browser account"); }
+        if (route.interactionMode !== "automatic") throw new BridgeError("Manual browser mode is not supported by the Hermes bridge");
+        const turn = prepareTurn(validated);
+        turn.parsed.modelId = route.backendModel;
+        turn.parsed._chatgptModelFamily = route.modelFamily;
+        turn.parsed.options.reasoning = route.adapterEffort;
+        const events = await (async () => {
+          let text = "";
+          let textBytes = 0;
+          let done: Extract<AdapterEvent, { type: "done" }> | undefined;
+          await options.adapter.runTurn(turn.parsed, { headers: new Headers(), abortSignal: request.signal }, event => {
+            if (request.signal.aborted) return;
+            if (event.type === "heartbeat") return;
+            if (event.type === "text_delta" && event.phase !== "commentary") {
+              textBytes += Buffer.byteLength(event.text);
+              if (textBytes > maxReply) throw new BridgeError("Browser reply exceeds the bridge output limit", 502);
+              text += event.text;
+            } else if (event.type === "done") done = event;
+            else if (event.type === "error" || event.type === "incomplete") throw new BridgeError("Browser turn failed", 502);
+          });
+          if (!done) throw new BridgeError("Browser turn did not complete", 502);
+          return turn.decode(text, done);
+        })();
+        // Extract the text from decoded events.
+        const replyText = events.filter((e): e is Extract<AdapterEvent, { type: "text_delta" }> => e.type === "text_delta").map(e => e.text).join("");
+        const doneEvent = events.find(e => e.type === "done") as Extract<AdapterEvent, { type: "done" }> | undefined;
+        const usage = doneEvent?.usage;
+        return json({
+          id: `chatcmpl-${crypto.randomUUID().replaceAll("-", "")}`,
+          object: "chat.completion",
+          created: Math.floor(Date.now() / 1000),
+          model,
+          choices: [{ index: 0, message: { role: "assistant", content: replyText }, finish_reason: "stop" }],
+          usage: usage ? { prompt_tokens: usage.inputTokens ?? 0, completion_tokens: usage.outputTokens ?? 0, total_tokens: (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0) } : undefined,
+        });
+      }
       if (url.pathname !== "/v1/responses") throw new BridgeError("Not found", 404);
       if (request.method !== "POST") throw new BridgeError("Method not allowed", 405);
       const body = validateRequest(await readBody(request, maxBody));
