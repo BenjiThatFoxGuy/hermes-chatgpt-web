@@ -95,6 +95,29 @@ def test_default_sdk_does_not_retry_ambiguous_browser_submission(endpoint):
     assert httpx.get(counter).json()["submissions"] == before + 1
 
 
+@pytest.mark.parametrize("reasoning_config", [None, {"enabled": False}])
+def test_actual_hermes_transport_request_and_response_contract(endpoint, reasoning_config):
+    from agent.transports.codex import ResponsesApiTransport
+
+    transport = ResponsesApiTransport()
+    kwargs = transport.build_kwargs(
+        MODEL,
+        [{"role": "system", "content": "Use host tools when required."},
+         {"role": "user", "content": "Run the harmless host test tool"}],
+        [{"type": "function", "function": {key: value for key, value in TOOL.items() if key != "type"}}],
+        provider="chatgpt-web", base_url=endpoint, session_id="sdk-hermes-contract",
+        reasoning_config=reasoning_config,
+    )
+    # These are Hermes-produced kwargs, not an imagined OpenAI request shape.
+    assert "include" in kwargs
+    assert "prompt_cache_key" in kwargs
+    with OpenAI(base_url=endpoint, api_key="sdk-contract-fixture-key", max_retries=0) as client:
+        response = client.responses.create(**kwargs)
+    normalized = transport.normalize_response(response)
+    assert normalized.finish_reason == "tool_calls"
+    assert normalized.tool_calls[0].name == "hermes_test_add"
+
+
 def test_real_sdk_only_browser_models_are_listed(endpoint):
     with OpenAI(base_url=endpoint, api_key="sdk-contract-fixture-key", max_retries=0) as client:
         models = list(client.models.list())
