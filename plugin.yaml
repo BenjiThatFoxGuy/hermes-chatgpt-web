@@ -1,5 +1,28 @@
 name: chatgpt-web
-kind: model-provider
-version: 0.1.0
-description: ChatGPT Web inference through an authenticated local Hermes bridge
+kind: standalone
+version: 0.2.0
+description: ChatGPT Web inference through an authenticated browser bridge
 requires_hermes: ">=0.23.2"
+requires_env:
+  - CHATGPT_WEB_API_KEY
+config_schema:
+  bridge_port:
+    type: int
+    default: 8766
+    label: Bridge port
+    description: Local port the bridge binds to (127.0.0.1 only)
+  bun_path:
+    type: str
+    default: ""
+    label: Bun binary path
+    description: "Absolute path to the bun binary; auto-detected when empty"
+  launcher_app:
+    type: str
+    default: ""
+    label: Launcher AppImage path
+    description: "Absolute path to the launcher AppImage; auto-detected when empty"
+  models:
+    type: str
+    default: ""
+    label: Model allowlist
+    description: "Comma-separated model slugs to expose; empty = all available"
