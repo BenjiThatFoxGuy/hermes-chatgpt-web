@@ -67,6 +67,38 @@ DOM selectors, account entitlements or a live ChatGPT tool round-trip. Those req
 an approved browser runtime and an authenticated account. Do not use real login
 state or bridge keys in CI.
 
+## Running the separate browser bridge
+
+The production entry point is:
+
+```sh
+bun run src/hermes/server.ts
+```
+
+Run it from the browser-runtime source with its locked Bun dependencies installed
+and an already configured, signed-in upstream browser runtime. Its process
+must receive `CHATGPT_WEB_API_KEY` securely from the same private credential
+source used by Hermes. The bridge does not run upstream setup, create a Codex
+integration or manage a service unit. For Launcher-backed configurations, the
+existing Launcher browser host must already be running.
+
+Optional runtime environment settings:
+
+- `CHATGPT_WEB_PORT`: loopback port, default `8766`.
+- `CHATGPT_WEB_MODELS`: comma-separated exact model slugs to restrict the
+  account-capability catalog. Unknown or unavailable slugs fail startup.
+- `CODEX_CHATGPT_WEB_HOME`: upstream runtime configuration location.
+
+The listener address is fixed to `127.0.0.1`. Each browser request uses a fresh
+conversation and does not select a native connector. The HTTP request-body limit
+is 8 MiB; the validated browser reply limit is 2 MiB. Inline PNG/JPEG/GIF/WebP
+images are supported. Stored response continuation IDs, hosted/native tools,
+sampling parameters and hard output-token controls are not supported.
+
+SSE retains real progress heartbeats while buffering the structured reply.
+Only validated message text or tool calls leave that buffer. Cancellation aborts
+the browser turn; unknown browser acceptance is not automatically retried.
+
 ## Live setup status
 
 Development is intentionally separate from installation. No live Hermes profile,
