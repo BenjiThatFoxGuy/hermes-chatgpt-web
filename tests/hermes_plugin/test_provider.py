@@ -54,6 +54,13 @@ def test_unavailable_catalog_does_not_invent_account_models(monkeypatch):
     assert profile.fetch_models(api_key="fixture") is None
 
 
+def test_native_plugin_admission_validation():
+    from hermes_cli.plugin_validate import validate_plugin_dir
+
+    report = validate_plugin_dir(ROOT)
+    assert report.ok, report.to_dict()
+
+
 def test_installer_flat_layout_is_discovered(tmp_path):
     assert (ROOT / "plugin.yaml").exists(), "model-provider manifest is missing"
     installed = tmp_path / "plugins" / "chatgpt-web"
