@@ -71,6 +71,16 @@ test("rendered Markdown escapes inside a JSON envelope are normalized", async ()
 });
 
 
+test("rendered Markdown escapes around tool arrays are normalized", async () => {
+  const handler = createHermesHandler({ apiKey: key, capabilities,
+    adapter: fixture('{"type":"tool\\_calls","calls":\\[{"name":"read\\_file","arguments":{"path":"/notes"}}\\]}') });
+  const response = await handler(request({ tools: [tool] }));
+  expect(response.status).toBe(200);
+  const json = await response.json() as any;
+  expect(json.output[0]).toMatchObject({ type: "function_call", name: "read_file", arguments: '{"path":"/notes"}' });
+});
+
+
 test("real browser boundary compiles full history without Codex identities or MCP execution", async () => {
   const turns: BrowserTurn[] = [];
   const worker = { async run(turn: BrowserTurn) {

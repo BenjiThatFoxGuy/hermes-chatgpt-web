@@ -20,9 +20,9 @@ export function parseChatGptStructuredJson(answer: string): unknown {
       normalized += char;
       continue;
     }
-    if (inString && char === "\\" && index + 1 < answer.length) {
+    if (char === "\\" && index + 1 < answer.length) {
       const next = answer[index + 1]!;
-      if (JSON_ESCAPES.has(next)) {
+      if (inString && JSON_ESCAPES.has(next)) {
         normalized += char + next;
         index++;
         continue;

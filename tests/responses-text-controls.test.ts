@@ -42,6 +42,9 @@ test("strict JSON validation accepts only the exact full schema-conforming answe
   })!;
   expect(() => validate('{"ok":true,"count":2}')).not.toThrow();
   expect(parseChatGptStructuredJson('{"text":"CHATGPT\\_WEB\\_LIVE\\_OK"}')).toEqual({ text: "CHATGPT_WEB_LIVE_OK" });
+  expect(parseChatGptStructuredJson('{"type":"tool\\_calls","calls":\\[{"name":"host\\_tool"}\\]}')).toEqual({
+    type: "tool_calls", calls: [{ name: "host_tool" }],
+  });
   expect(parseChatGptStructuredJson('{"text":"literal\\\\_underscore"}')).toEqual({ text: "literal\\_underscore" });
   for (const invalid of [
     'prefix {"ok":true,"count":2}',
