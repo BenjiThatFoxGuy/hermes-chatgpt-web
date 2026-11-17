@@ -4,6 +4,10 @@ import type { CodexParsedRequest, AdapterEvent } from "../src/types";
 import type { ProviderAdapter } from "../src/adapters/base";
 import { createHermesBrowserAdapter } from "../src/hermes/browser";
 import type { BrowserTurn } from "../src/adapters/chatgpt-web/browser-worker";
+import { startHermesServer } from "../src/hermes/server";
+import { mkdtempSync, rmSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 
 const model = "chatgpt-web/gpt-6-sol";
 const capabilities = { solAvailable: true, proAvailable: false, extraHighAvailable: false };
@@ -233,5 +237,81 @@ test("browser heartbeats remain adapter progress while the envelope is buffered"
   const text = await res.text();
   expect(text).toContain("response.completed");
   expect(text).not.toContain("upstream_stall_timeout");
+});
+
+test("executable server binds loopback and serves only configured browser model capabilities", async () => {
+  const server = startHermesServer({ apiKey: key, capabilities, adapter: fixture({ type: "message", text: "Socket reply" }), port: 0, modelAllowlist: [model] });
+  try {
+    expect(server.hostname).toBe("127.0.0.1");
+    const base = `http://127.0.0.1:${server.port}`;
+    const catalog = await fetch(`${base}/v1/models`, { headers: { Authorization: `Bearer ${key}` }, redirect: "error" });
+    expect(catalog.status).toBe(200);
+    expect((await catalog.json() as any).data.map((entry: any) => entry.id)).toEqual([model]);
+    const res = await fetch(`${base}/v1/responses`, { method: "POST", headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" }, body: JSON.stringify({ model, input: "socket message" }), redirect: "error" });
+    expect(res.status).toBe(200);
+    expect((await res.json() as any).output[0].content[0].text).toBe("Socket reply");
+  } finally { await server.stop(true); }
+});
+
+test("executable fails clearly without a local bearer or configured browser runtime", async () => {
+  const home = mkdtempSync(join(tmpdir(), "hermes-bridge-missing-runtime-"));
+  try {
+    for (const token of ["", key]) {
+      const proc = Bun.spawn([process.execPath, "run", "src/hermes/server.ts"], {
+        env: { ...process.env, CODEX_CHATGPT_WEB_HOME: home, CHATGPT_WEB_API_KEY: token }, stdout: "pipe", stderr: "pipe",
+      });
+      const stderr = await new Response(proc.stderr).text();
+      expect(await proc.exited).toBe(1);
+      expect(stderr).toContain(token ? "browser runtime" : "CHATGPT_WEB_API_KEY");
+      expect(stderr).not.toContain(key);
+    }
+  } finally { rmSync(home, { recursive: true, force: true }); }
+});
+
+test("actual socket stream disconnect aborts the browser turn", async () => {
+  let observed!: () => void;
+  const aborted = new Promise<void>(resolve => { observed = resolve; });
+  const adapter: ProviderAdapter = { name: "socket-browser", async runTurn(_parsed, incoming) {
+    await new Promise<void>(resolve => incoming.abortSignal!.addEventListener("abort", () => { observed(); resolve(); }, { once: true }));
+  } };
+  const server = startHermesServer({ apiKey: key, capabilities, adapter, port: 0 });
+  try {
+    const controller = new AbortController();
+    const res = await fetch(`http://127.0.0.1:${server.port}/v1/responses`, { method: "POST", signal: controller.signal,
+      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" }, body: JSON.stringify({ model, input: "slow browser", stream: true }),
+    });
+    const reader = res.body!.getReader();
+    await reader.read();
+    controller.abort();
+    await reader.cancel().catch(() => {});
+    await aborted;
+  } finally { await server.stop(true); }
+});
+
+test("canonical assistant message output can be replayed without losing text", async () => {
+  const observed: CodexParsedRequest[] = [];
+  const handler = createHermesHandler({ apiKey: key, capabilities, adapter: fixture({ type: "message", text: "Next" }, observed) });
+  const res = await handler(request({ input: [
+    { role: "user", content: "first" },
+    { type: "message", id: "msg_prior", status: "completed", role: "assistant", content: [{ type: "output_text", text: "Previous answer", annotations: [] }] },
+    { role: "user", content: "next" },
+  ] }));
+  expect(res.status).toBe(200);
+  expect(observed[0]!.context.messages.some(message => message.role === "assistant" && message.content.some(part => part.type === "text" && part.text === "Previous answer"))).toBe(true);
+});
+
+test("function argument schemas preserve local JSON references", async () => {
+  const handler = createHermesHandler({ apiKey: key, capabilities, adapter: fixture(callReply) });
+  const res = await handler(request({ tools: [{ ...tool, parameters: { type: "object", properties: { path: { $ref: "#/$defs/path" } }, required: ["path"], additionalProperties: false, $defs: { path: { type: "string" } } } }] }));
+  expect(res.status).toBe(200);
+});
+
+test("streaming invalid envelope never leaks raw or unauthorized output", async () => {
+  const handler = createHermesHandler({ apiKey: key, capabilities, adapter: fixture({ type: "tool_calls", calls: [{ name: "unlisted", arguments: {} }] }) });
+  const response = await handler(request({ tools: [tool], stream: true }));
+  const stream = await response.text();
+  expect(stream).toContain("response.failed");
+  expect(stream).not.toContain("unlisted");
+  expect(stream).not.toContain("response.function_call_arguments.delta");
 });
 
