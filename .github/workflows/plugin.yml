@@ -1,0 +1,65 @@
+name: Hermes plugin
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hermes-plugin-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  plugin:
+    runs-on: self-hosted
+    timeout-minutes: 30
+    env:
+      HERMES_HOME: ${{ runner.temp }}/hermes-plugin-home
+      TMPDIR: ${{ runner.temp }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
+      - name: Install bridge dependencies
+        run: bun install --frozen-lockfile
+      - name: Check upstream bridge types
+        run: bun run typecheck
+      - name: Test Hermes bridge
+        run: |
+          if [ -f tests/hermes-bridge.test.ts ]; then
+            bun test tests/hermes-bridge.test.ts
+          fi
+      - name: Prepare pinned Hermes contract
+        run: |
+          python -m venv "$RUNNER_TEMP/plugin-venv"
+          "$RUNNER_TEMP/plugin-venv/bin/pip" install pytest httpx openai pyyaml packaging python-dotenv rich tenacity tiktoken fire prompt-toolkit pydantic requests
+          git clone --filter=blob:none --no-checkout https://github.com/NousResearch/hermes-agent.git "$RUNNER_TEMP/hermes-contract"
+          git -C "$RUNNER_TEMP/hermes-contract" checkout ae2a81ccc00e9b7c06301523e5bb09608397149c
+      - name: Test provider contract
+        env:
+          PYTHONPATH: ${{ runner.temp }}/hermes-contract
+        run: |
+          if [ -d tests/hermes_plugin ]; then
+            "$RUNNER_TEMP/plugin-venv/bin/python" -m pytest tests/hermes_plugin -v --junitxml=plugin-results.xml
+          fi
+      - name: Package plugin source
+        run: |
+          mkdir -p dist
+          git archive --format=tar.gz HEAD -o dist/hermes-chatgpt-web.tar.gz
+          sha256sum dist/hermes-chatgpt-web.tar.gz > dist/SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hermes-chatgpt-web
+          path: |
+            dist/hermes-chatgpt-web.tar.gz
+            dist/SHA256SUMS
+            plugin-results.xml
+          retention-days: 7
+          if-no-files-found: error
