@@ -1,7 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import type { ProviderAdapter } from "../adapters/base";
 import { bridgeToResponsesSSE, buildResponseJSON } from "../bridge";
-import { availableChatGptWebModelRoutes, requireChatGptWebModelRoute, type ChatGptWebAccountCapabilities } from "../chatgpt-web-models";
+import { availableChatGptWebModelRoutes, chatGptWebRouteContextMetadata, requireChatGptWebModelRoute, type ChatGptWebAccountCapabilities } from "../chatgpt-web-models";
 import { AsyncEventQueue } from "../event-queue";
 import type { AdapterEvent } from "../types";
 import { BridgeError, prepareTurn } from "./envelope";
@@ -79,7 +79,16 @@ export function createHermesHandler(options: HermesHandlerOptions) {
       if (url.search) throw new BridgeError("Query parameters are unsupported");
       if (url.pathname === "/v1/models") {
         if (request.method !== "GET") throw new BridgeError("Method not allowed", 405);
-        return json({ object: "list", data: routes.map(route => ({ id: route.slug, object: "model", created: 0, owned_by: "chatgpt-web" })) });
+        return json({
+          object: "list",
+          data: routes.map(route => ({
+            id: route.slug,
+            object: "model",
+            created: 0,
+            owned_by: "chatgpt-web",
+            ...chatGptWebRouteContextMetadata(route, options.capabilities),
+          })),
+        });
       }
       if (url.pathname !== "/v1/responses") throw new BridgeError("Not found", 404);
       if (request.method !== "POST") throw new BridgeError("Method not allowed", 405);

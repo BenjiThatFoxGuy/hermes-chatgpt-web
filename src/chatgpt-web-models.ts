@@ -216,6 +216,27 @@ export function resolveChatGptWebContextLimits(
   );
 }
 
+/**
+ * Context budget a host should assume for one browser model route.
+ *
+ * Hermes resolves a provider's context window from its `/v1/models` catalog, and its compressor
+ * compacts the transcript at a percentage of that window. A browser route's real budget is the
+ * measured ChatGPT transport window, not the upstream model's advertised window, so the bridge
+ * publishes it here. Routes whose supported efforts share one budget (enforced by the model
+ * catalog) advertise that single value; the per-request effort never changes it.
+ */
+export function chatGptWebRouteContextMetadata(
+  route: ChatGptWebModelRoute,
+  capabilities: ChatGptWebAccountCapabilities,
+): ChatGptWebContextLimits {
+  return resolveChatGptWebContextLimits(
+    route.backendModel,
+    route.adapterEffort,
+    capabilities,
+    route.interactionMode === "automatic" ? route.modelFamily : undefined,
+  );
+}
+
 /** Resolve limits of one visible ChatGPT composer message, independently of model context. */
 export function resolveChatGptWebTransportLimits(
   backendModel: ChatGptWebBackendModel,

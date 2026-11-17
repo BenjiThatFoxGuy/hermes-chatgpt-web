@@ -266,7 +266,14 @@ test("executable server binds loopback and serves only configured browser model 
     const base = `http://127.0.0.1:${server.port}`;
     const catalog = await fetch(`${base}/v1/models`, { headers: { Authorization: `Bearer ${key}` }, redirect: "error" });
     expect(catalog.status).toBe(200);
-    expect((await catalog.json() as any).data.map((entry: any) => entry.id)).toEqual([model]);
+    const entries = (await catalog.json() as any).data;
+    expect(entries.map((entry: any) => entry.id)).toEqual([model]);
+    expect(entries[0]).toMatchObject({
+      context_window: 90_000,
+      max_context_window: 90_000,
+      auto_compact_token_limit: 80_000,
+      effective_context_window_percent: 89,
+    });
     const res = await fetch(`${base}/v1/responses`, { method: "POST", headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" }, body: JSON.stringify({ model, input: "socket message" }), redirect: "error" });
     expect(res.status).toBe(200);
     expect((await res.json() as any).output[0].content[0].text).toBe("Socket reply");
