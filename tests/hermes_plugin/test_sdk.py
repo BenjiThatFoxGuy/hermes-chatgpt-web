@@ -81,6 +81,20 @@ def test_real_sdk_wrong_key_rejected_without_browser_execution(endpoint):
             client.responses.create(model=MODEL, input="Do not execute")
 
 
+def test_default_sdk_does_not_retry_ambiguous_browser_submission(endpoint):
+    import httpx
+    from openai import APIStatusError
+
+    counter = endpoint.removesuffix("/v1") + "/__fixture/submissions"
+    before = httpx.get(counter).json()["submissions"]
+    # Deliberately retain the SDK's normal retry policy.
+    with OpenAI(base_url=endpoint, api_key="sdk-contract-fixture-key") as client:
+        with pytest.raises(APIStatusError) as failure:
+            client.responses.create(model=MODEL, input="invalid-envelope")
+        assert failure.value.response.headers["x-should-retry"] == "false"
+    assert httpx.get(counter).json()["submissions"] == before + 1
+
+
 def test_real_sdk_only_browser_models_are_listed(endpoint):
     with OpenAI(base_url=endpoint, api_key="sdk-contract-fixture-key", max_retries=0) as client:
         models = list(client.models.list())
