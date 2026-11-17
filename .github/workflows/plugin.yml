@@ -40,7 +40,7 @@ jobs:
         if: ${{ !cancelled() }}
         run: |
           python3 -m venv "$RUNNER_TEMP/plugin-venv"
-          "$RUNNER_TEMP/plugin-venv/bin/pip" install pytest httpx openai pyyaml packaging python-dotenv rich tenacity tiktoken fire prompt-toolkit pydantic requests
+          "$RUNNER_TEMP/plugin-venv/bin/pip" install pytest httpx openai pyyaml packaging python-dotenv rich tenacity tiktoken fire prompt-toolkit pydantic requests ruamel.yaml truststore tomli-w
           git init "$RUNNER_TEMP/hermes-contract"
           git -C "$RUNNER_TEMP/hermes-contract" remote add origin https://github.com/NousResearch/hermes-agent.git
           git -C "$RUNNER_TEMP/hermes-contract" fetch --depth=1 origin ae2a81ccc00e9b7c06301523e5bb09608397149c
@@ -51,7 +51,7 @@ jobs:
           PYTHONPATH: ${{ runner.temp }}/hermes-contract
         run: |
           if [ -d tests/hermes_plugin ]; then
-            "$RUNNER_TEMP/plugin-venv/bin/python" -m pytest tests/hermes_plugin -v --junitxml=plugin-results.xml
+            "$RUNNER_TEMP/plugin-venv/bin/python" -m pytest -c tests/hermes_plugin/pytest.ini --rootdir tests/hermes_plugin tests/hermes_plugin -v --junitxml=plugin-results.xml
           fi
       - name: Package plugin source
         run: |
