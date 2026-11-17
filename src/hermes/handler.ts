@@ -1,6 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 import type { ProviderAdapter } from "../adapters/base";
-import { buildResponseJSON } from "../bridge";
+import { bridgeToResponsesSSE, buildResponseJSON } from "../bridge";
 import { availableChatGptWebModelRoutes, requireChatGptWebModelRoute, type ChatGptWebAccountCapabilities } from "../chatgpt-web-models";
 import type { AdapterEvent } from "../types";
 import { BridgeError, prepareTurn } from "./envelope";
@@ -37,15 +37,31 @@ export function createHermesHandler(options: HermesHandlerOptions) {
       turn.parsed.modelId = route.backendModel;
       turn.parsed._chatgptModelFamily = route.modelFamily;
       turn.parsed.options.reasoning = route.adapterEffort;
-      let text = "";
-      let done: Extract<AdapterEvent, { type: "done" }> | undefined;
-      await options.adapter.runTurn(turn.parsed, { headers: new Headers(), abortSignal: request.signal }, event => {
-        if (event.type === "text_delta" && event.phase !== "commentary") text += event.text;
-        else if (event.type === "done") done = event;
-        else if (event.type === "error" || event.type === "incomplete") throw new BridgeError("Browser turn failed", 502);
-      });
-      if (!done) throw new BridgeError("Browser turn did not complete", 502);
-      return Response.json(buildResponseJSON(turn.decode(text, done), model));
+      const abort = new AbortController();
+      const signal = AbortSignal.any([request.signal, abort.signal]);
+      const run = async (): Promise<AdapterEvent[]> => {
+        let text = "";
+        let done: Extract<AdapterEvent, { type: "done" }> | undefined;
+        await options.adapter.runTurn(turn.parsed, { headers: new Headers(), abortSignal: signal }, event => {
+          signal.throwIfAborted();
+          if (event.type === "text_delta" && event.phase !== "commentary") text += event.text;
+          else if (event.type === "done") done = event;
+          else if (event.type === "error" || event.type === "incomplete") throw new BridgeError("Browser turn failed", 502);
+        });
+        signal.throwIfAborted();
+        if (!done) throw new BridgeError("Browser turn did not complete", 502);
+        return turn.decode(text, done);
+      };
+      if (body.stream === true) {
+        async function* events(): AsyncIterable<AdapterEvent> {
+          try { for (const event of await run()) yield event; }
+          catch (error) { if (!signal.aborted) yield { type: "error", message: error instanceof BridgeError ? error.message : "Browser runtime failed", status: 502, errorType: "server_error", code: "bridge_error", retryable: false }; }
+        }
+        return new Response(bridgeToResponsesSSE(events(), model, undefined, undefined, undefined, () => abort.abort()), {
+          headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-store", "x-should-retry": "false" },
+        });
+      }
+      return Response.json(buildResponseJSON(await run(), model));
     } catch (error) {
       const status = error instanceof BridgeError ? error.status : 502;
       return Response.json({ error: { message: error instanceof BridgeError ? error.message : "Browser runtime failed", type: status >= 500 ? "server_error" : "invalid_request_error", code: status === 401 ? "invalid_api_key" : "bridge_error" } }, { status });
