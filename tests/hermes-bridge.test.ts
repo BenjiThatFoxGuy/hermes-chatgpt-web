@@ -122,3 +122,116 @@ test("canceling a streaming response aborts the underlying browser turn", async 
   await canceled;
 });
 
+const secondTool = { ...tool, name: "write_file" };
+const callReply = { type: "tool_calls", calls: [{ name: "read_file", arguments: { path: "/a" } }] };
+test.each([
+  ["none", callReply], ["required", { type: "message", text: "Skipped tools" }],
+  [{ type: "function", name: "write_file" }, callReply],
+  [{ type: "allowed_tools", mode: "auto", tools: [{ type: "function", name: "write_file" }] }, callReply],
+])("tool_choice %j is enforced rather than merely included in the prompt", async (choice, reply) => {
+  const handler = createHermesHandler({ apiKey: key, capabilities, adapter: fixture(reply) });
+  expect((await handler(request({ tools: [tool, secondTool], tool_choice: choice }))).status).toBe(502);
+});
+
+test("parallel_tool_calls false rejects a browser reply requesting two calls", async () => {
+  const handler = createHermesHandler({ apiKey: key, capabilities, adapter: fixture({ type: "tool_calls", calls: [callReply.calls[0], callReply.calls[0]] }) });
+  expect((await handler(request({ tools: [tool], parallel_tool_calls: false }))).status).toBe(502);
+});
+
+test.each([
+  { previous_response_id: "resp_prior" }, { temperature: 0.3 }, { max_output_tokens: 20 },
+  { unknown_control: true }, { store: true }, { metadata: { turn_id: "fake" } },
+  { tools: [{ type: "web_search" }] }, { tools: [{ ...tool, parameters: { type: "array" } }] },
+  { tools: [tool, tool] }, { tools: [tool], tool_choice: { type: "function", name: "missing" } },
+  { tools: [tool], tool_choice: { type: "allowed_tools", mode: "auto", tools: [{ type: "web_search" }] } },
+  { input: [{ type: "function_call_output", call_id: "orphan", output: "invented" }] },
+  { input: [{ role: "user", content: [{ type: "input_file", file_id: "missing" }] }] },
+  { input: [{ role: "user", content: [{ type: "input_image", image_url: "https://example.com/image.png" }] }] },
+  { input: [{ type: "compaction", encrypted_content: "opaque" }] },
+  { text: { format: { type: "json_object" } } },
+  { reasoning: { effort: "xhigh" } },
+])("unsupported or malformed request fails before starting browser: %j", async body => {
+  const observed: CodexParsedRequest[] = [];
+  const handler = createHermesHandler({ apiKey: key, capabilities, adapter: fixture({ type: "message", text: "ok" }, observed) });
+  expect((await handler(request(body))).status).toBe(400);
+  expect(observed).toHaveLength(0);
+});
+
+test("caller reasoning effort is routed to the browser instead of silently reset", async () => {
+  const observed: CodexParsedRequest[] = [];
+  const handler = createHermesHandler({ apiKey: key, capabilities, adapter: fixture({ type: "message", text: "ok" }, observed) });
+  expect((await handler(request({ reasoning: { effort: "medium" } }))).status).toBe(200);
+  expect(observed[0]!.options.reasoning).toBe("medium");
+});
+
+test.each([
+  { type: "tool_calls", calls: [{ name: "unlisted", arguments: {} }] },
+  { type: "tool_calls", calls: [{ name: "read_file", arguments: { path: 123 } }] },
+  { type: "tool_calls", calls: [{ name: "read_file", arguments: "{}" }] },
+  { type: "tool_calls", calls: [] }, { type: "message", text: "ok", calls: [] },
+])("malformed or unauthorized reply envelope fails closed: %j", async reply => {
+  const handler = createHermesHandler({ apiKey: key, capabilities, adapter: fixture(reply) });
+  const res = await handler(request({ tools: [tool] }));
+  expect(res.status).toBe(502);
+  expect(res.headers.get("x-should-retry")).toBe("false");
+});
+
+test("strict caller JSON output schema is preserved within message.text", async () => {
+  const body = { text: { format: { type: "json_schema", name: "result", strict: true,
+    schema: { type: "object", properties: { ok: { type: "boolean" } }, required: ["ok"], additionalProperties: false } } } };
+  const good = createHermesHandler({ apiKey: key, capabilities, adapter: fixture({ type: "message", text: '{"ok":true}' }) });
+  expect((await good(request(body))).status).toBe(200);
+  const bad = createHermesHandler({ apiKey: key, capabilities, adapter: fixture({ type: "message", text: '{"ok":"yes"}' }) });
+  expect((await bad(request(body))).status).toBe(502);
+});
+
+test("auth, browser origin, loopback authority, methods and routes fail closed", async () => {
+  const observed: CodexParsedRequest[] = [];
+  const handler = createHermesHandler({ apiKey: key, capabilities, adapter: fixture({ type: "message", text: "ok" }, observed) });
+  for (const [headers, status] of [
+    [{ Authorization: "" }, 401], [{ Authorization: "Bearer wrong" }, 401],
+    [{ Origin: "null" }, 403], [{ "Sec-Fetch-Site": "cross-site" }, 403],
+    [{ Host: "evil.example" }, 403],
+  ] as [Record<string, string>, number][]) {
+    const res = await handler(request({}, headers));
+    expect(res.status).toBe(status);
+    expect(res.headers.get("x-should-retry")).toBe("false");
+    expect(res.headers.get("access-control-allow-origin")).toBeNull();
+  }
+  for (const [url, method, status] of [
+    ["http://evil.example/v1/models", "GET", 403], ["http://127.0.0.1:8766/v1/responses/", "GET", 404],
+    ["http://127.0.0.1:8766/v1/responses", "GET", 405],
+  ] as const) {
+    expect((await handler(new Request(url, { method, headers: { Authorization: `Bearer ${key}` } }))).status).toBe(status);
+  }
+  expect(observed).toHaveLength(0);
+  expect(() => createHermesHandler({ apiKey: "", capabilities, adapter: fixture({}) })).toThrow();
+});
+
+test("body limit counts streamed bytes without trusting Content-Length", async () => {
+  const observed: CodexParsedRequest[] = [];
+  const handler = createHermesHandler({ apiKey: key, capabilities, maxBodyBytes: 100, adapter: fixture({ type: "message", text: "ok" }, observed) } as any);
+  const bytes = new TextEncoder().encode(JSON.stringify({ model, input: "x".repeat(200) }));
+  const req = new Request("http://127.0.0.1:8766/v1/responses", { method: "POST",
+    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+    body: new ReadableStream({ start(controller) { controller.enqueue(bytes.slice(0, 50)); controller.enqueue(bytes.slice(50)); controller.close(); } }),
+  });
+  expect((await handler(req)).status).toBe(413);
+  expect(observed).toHaveLength(0);
+});
+
+test("browser heartbeats remain adapter progress while the envelope is buffered", async () => {
+  const adapter: ProviderAdapter = { name: "slow-browser", async runTurn(_parsed, _incoming, emit) {
+    const interval = setInterval(() => emit({ type: "heartbeat" }), 30);
+    await new Promise(resolve => setTimeout(resolve, 1350));
+    clearInterval(interval);
+    emit({ type: "text_delta", text: '{"type":"message","text":"Still healthy"}' });
+    emit({ type: "done" });
+  } };
+  const handler = createHermesHandler({ apiKey: key, capabilities, adapter, heartbeatMs: 25, stallTimeoutSec: 1 } as any);
+  const res = await handler(request({ stream: true }));
+  const text = await res.text();
+  expect(text).toContain("response.completed");
+  expect(text).not.toContain("upstream_stall_timeout");
+});
+
