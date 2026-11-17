@@ -118,6 +118,24 @@ def test_actual_hermes_transport_request_and_response_contract(endpoint, reasoni
     assert normalized.tool_calls[0].name == "hermes_test_add"
 
 
+@pytest.mark.parametrize("asynchronous", [False, True])
+def test_actual_hermes_auxiliary_adapter(endpoint, asynchronous):
+    import asyncio
+    from agent.auxiliary_client import _AsyncCompletionsAdapter, _CodexCompletionsAdapter
+
+    with OpenAI(base_url=endpoint, api_key="sdk-contract-fixture-key", max_retries=0) as client:
+        adapter = _CodexCompletionsAdapter(client, MODEL)
+        kwargs = {"model": MODEL, "messages": [
+            {"role": "system", "content": "Return a brief assistant message."},
+            {"role": "user", "content": "stream-message"},
+        ], "timeout": 10, "max_tokens": 100, "temperature": 0}
+        if asynchronous:
+            response = asyncio.run(_AsyncCompletionsAdapter(adapter).create(**kwargs))
+        else:
+            response = adapter.create(**kwargs)
+        assert response.choices[0].message.content == "SDK stream received"
+
+
 def test_real_sdk_only_browser_models_are_listed(endpoint):
     with OpenAI(base_url=endpoint, api_key="sdk-contract-fixture-key", max_retries=0) as client:
         models = list(client.models.list())
