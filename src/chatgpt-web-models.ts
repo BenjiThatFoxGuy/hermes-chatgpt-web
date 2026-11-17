@@ -224,17 +224,31 @@ export function resolveChatGptWebContextLimits(
  * measured ChatGPT transport window, not the upstream model's advertised window, so the bridge
  * publishes it here. Routes whose supported efforts share one budget (enforced by the model
  * catalog) advertise that single value; the per-request effort never changes it.
+ *
+ * Keys are snake_case because that is the shape a host reads from `/v1/models`; the internal
+ * camelCase limits are mapped rather than spread.
  */
 export function chatGptWebRouteContextMetadata(
   route: ChatGptWebModelRoute,
   capabilities: ChatGptWebAccountCapabilities,
-): ChatGptWebContextLimits {
-  return resolveChatGptWebContextLimits(
+): {
+  context_window: number;
+  max_context_window: number;
+  auto_compact_token_limit: number;
+  effective_context_window_percent: number;
+} {
+  const limits = resolveChatGptWebContextLimits(
     route.backendModel,
     route.adapterEffort,
     capabilities,
     route.interactionMode === "automatic" ? route.modelFamily : undefined,
   );
+  return {
+    context_window: limits.contextWindow,
+    max_context_window: limits.contextWindow,
+    auto_compact_token_limit: limits.autoCompactTokenLimit,
+    effective_context_window_percent: limits.effectiveContextWindowPercent,
+  };
 }
 
 /** Resolve limits of one visible ChatGPT composer message, independently of model context. */
