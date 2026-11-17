@@ -48,9 +48,19 @@ model selection remain upstream responsibilities.
 ## Development and verification
 
 All builds and tests run on self-hosted GitHub Actions. The inherited hosted
-workflows are gated to the original upstream repository, preventing private-fork
+packaging/release jobs are gated to the original upstream repository, preventing private-fork
 pushes and tags from consuming hosted runner minutes or publishing upstream
-releases. The plugin workflow packages a source archive with a SHA-256 checksum.
+releases. CI produces two SHA-256-checked archives:
+
+- `chatgpt-web-plugin.tar.gz`: the small, installable provider directory, validated
+  by Hermes's real admission checks.
+- `hermes-chatgpt-web-source.tar.gz`: the complete separate browser-runtime source.
+
+The whole upstream-derived repository is **not** the admission-clean plugin
+artifact. Its retained translated READMEs, installer examples and diagnostic
+fixtures trigger Hermes's scanner. Do not bypass that scanner to install the full
+engine as a profile plugin; use the validated provider artifact and run the
+browser engine as a separate explicitly configured local service.
 
 Offline tests replace browser I/O with explicit fixtures. They do not prove login,
 DOM selectors, account entitlements or a live ChatGPT tool round-trip. Those require

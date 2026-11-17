@@ -54,10 +54,14 @@ def test_unavailable_catalog_does_not_invent_account_models(monkeypatch):
     assert profile.fetch_models(api_key="fixture") is None
 
 
-def test_native_plugin_admission_validation():
+def test_native_plugin_admission_validation(tmp_path):
     from hermes_cli.plugin_validate import validate_plugin_dir
 
-    report = validate_plugin_dir(ROOT)
+    # Validate the installable provider artifact, not the separate upstream engine
+    # source archive (which retains upstream curl-to-shell installation examples).
+    for name in ("__init__.py", "provider.py", "plugin.yaml", "LICENSE"):
+        shutil.copy2(ROOT / name, tmp_path / name)
+    report = validate_plugin_dir(tmp_path)
     assert report.ok, report.to_dict()
 
 

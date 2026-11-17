@@ -32,10 +32,7 @@ jobs:
       - name: Check upstream bridge types
         run: bun run typecheck
       - name: Test Hermes bridge
-        run: |
-          if [ -f tests/hermes-bridge.test.ts ]; then
-            bun test tests/hermes-bridge.test.ts
-          fi
+        run: bun test tests/hermes-bridge.test.ts
       - name: Prepare pinned Hermes contract
         if: ${{ !cancelled() }}
         run: |
@@ -49,20 +46,19 @@ jobs:
         if: ${{ !cancelled() }}
         env:
           PYTHONPATH: ${{ runner.temp }}/hermes-contract
-        run: |
-          if [ -d tests/hermes_plugin ]; then
-            "$RUNNER_TEMP/plugin-venv/bin/python" -m pytest -c tests/hermes_plugin/pytest.ini --rootdir tests/hermes_plugin tests/hermes_plugin -v --junitxml=plugin-results.xml
-          fi
+        run: '"$RUNNER_TEMP/plugin-venv/bin/python" -m pytest -c tests/hermes_plugin/pytest.ini --rootdir tests/hermes_plugin tests/hermes_plugin -v --junitxml=plugin-results.xml'
       - name: Package plugin source
         run: |
-          mkdir -p dist
-          git archive --format=tar.gz HEAD -o dist/hermes-chatgpt-web.tar.gz
-          sha256sum dist/hermes-chatgpt-web.tar.gz > dist/SHA256SUMS
+          mkdir -p dist/chatgpt-web
+          cp __init__.py provider.py plugin.yaml LICENSE dist/chatgpt-web/
+          tar -czf dist/chatgpt-web-plugin.tar.gz -C dist chatgpt-web
+          git archive --format=tar.gz HEAD -o dist/hermes-chatgpt-web-source.tar.gz
+          sha256sum dist/*.tar.gz > dist/SHA256SUMS
       - uses: actions/upload-artifact@v4
         with:
           name: hermes-chatgpt-web
           path: |
-            dist/hermes-chatgpt-web.tar.gz
+            dist/*.tar.gz
             dist/SHA256SUMS
             plugin-results.xml
           retention-days: 7
