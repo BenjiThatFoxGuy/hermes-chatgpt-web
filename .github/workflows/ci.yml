@@ -10,6 +10,8 @@ permissions:
 
 jobs:
   verify:
+    # Preserve upstream packaging without consuming private-fork hosted minutes.
+    if: github.repository == 'miuuyy/codex-chatgpt-web'
     strategy:
       fail-fast: false
       matrix:
@@ -71,6 +73,8 @@ jobs:
       - run: bun run app:smoke
 
   actionlint:
+    # Preserve upstream packaging without consuming private-fork hosted minutes.
+    if: github.repository == 'miuuyy/codex-chatgpt-web'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6

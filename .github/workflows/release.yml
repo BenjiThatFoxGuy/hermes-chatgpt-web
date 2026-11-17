@@ -9,6 +9,8 @@ permissions:
 
 jobs:
   build:
+    # Preserve upstream packaging without consuming private-fork hosted minutes.
+    if: github.repository == 'miuuyy/codex-chatgpt-web'
     strategy:
       fail-fast: false
       matrix:
@@ -88,6 +90,8 @@ jobs:
           if-no-files-found: error
 
   publish:
+    # Preserve upstream packaging without consuming private-fork hosted minutes.
+    if: github.repository == 'miuuyy/codex-chatgpt-web'
     needs: build
     runs-on: ubuntu-latest
     steps:
