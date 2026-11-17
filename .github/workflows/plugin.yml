@@ -22,9 +22,8 @@ jobs:
           echo "HERMES_HOME=$RUNNER_TEMP/hermes-plugin-home" >> "$GITHUB_ENV"
           echo "TMPDIR=$RUNNER_TEMP" >> "$GITHUB_ENV"
       - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
-        with:
-          python-version: '3.11'
+      - name: Check runner Python
+        run: python3 --version
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.4.0
@@ -39,7 +38,7 @@ jobs:
           fi
       - name: Prepare pinned Hermes contract
         run: |
-          python -m venv "$RUNNER_TEMP/plugin-venv"
+          python3 -m venv "$RUNNER_TEMP/plugin-venv"
           "$RUNNER_TEMP/plugin-venv/bin/pip" install pytest httpx openai pyyaml packaging python-dotenv rich tenacity tiktoken fire prompt-toolkit pydantic requests
           git clone --filter=blob:none --no-checkout https://github.com/NousResearch/hermes-agent.git "$RUNNER_TEMP/hermes-contract"
           git -C "$RUNNER_TEMP/hermes-contract" checkout ae2a81ccc00e9b7c06301523e5bb09608397149c
