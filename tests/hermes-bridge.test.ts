@@ -308,6 +308,7 @@ test("function argument schemas preserve local JSON references", async () => {
 
 test.each([
   { include: [], prompt_cache_key: "pck_main_transport" },
+  { include: [], reasoning: { effort: "none" }, prompt_cache_key: "pck_disabled_reasoning_transport" },
   { include: ["reasoning.encrypted_content"], reasoning: { effort: "medium", summary: "auto" }, prompt_cache_key: "pck_reasoning_transport" },
   { reasoning: { effort: "medium", summary: "auto" }, prompt_cache_key: "pck_auxiliary_transport", prompt_cache_retention: "24h" },
 ])("Hermes transport hints are accepted without inventing reasoning state or prompt caching: %j", async hints => {
