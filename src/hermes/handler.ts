@@ -53,8 +53,11 @@ export function createHermesHandler(options: HermesHandlerOptions) {
         return turn.decode(text, done);
       };
       if (body.stream === true) {
+        const pending = run();
+        // Attach immediately even when the client never reads beyond response.created.
+        void pending.catch(() => {});
         async function* events(): AsyncIterable<AdapterEvent> {
-          try { for (const event of await run()) yield event; }
+          try { for (const event of await pending) yield event; }
           catch (error) { if (!signal.aborted) yield { type: "error", message: error instanceof BridgeError ? error.message : "Browser runtime failed", status: 502, errorType: "server_error", code: "bridge_error", retryable: false }; }
         }
         return new Response(bridgeToResponsesSSE(events(), model, undefined, undefined, undefined, () => abort.abort()), {
