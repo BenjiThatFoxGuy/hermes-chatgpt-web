@@ -1,3 +1,5 @@
+> **Private Hermes derivative:** provider slug `chatgpt-web`. See [Hermes integration](docs/hermes.md) for the host boundary, CI and development status. The upstream Codex instructions below are retained for reference, not Hermes installation.
+
 <p align="center">
   <img src="assets/readme/hero.svg" width="960" alt="Switch to web models. Stay in Codex. Your ChatGPT plan. Your workflow. Maximum capabilities.">
 </p>
