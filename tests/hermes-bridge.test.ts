@@ -306,6 +306,39 @@ test("function argument schemas preserve local JSON references", async () => {
   expect(res.status).toBe(200);
 });
 
+test.each([
+  { include: [], prompt_cache_key: "pck_main_transport" },
+  { include: ["reasoning.encrypted_content"], reasoning: { effort: "medium", summary: "auto" }, prompt_cache_key: "pck_reasoning_transport" },
+  { reasoning: { effort: "medium", summary: "auto" }, prompt_cache_key: "pck_auxiliary_transport", prompt_cache_retention: "24h" },
+])("Hermes transport hints are accepted without inventing reasoning state or prompt caching: %j", async hints => {
+  const observed: CodexParsedRequest[] = [];
+  const handler = createHermesHandler({ apiKey: key, capabilities, adapter: fixture({ type: "message", text: "Compatible reply" }, observed) });
+  for (const stream of [false, true]) {
+    const response = await handler(request({ ...hints, stream, store: false }));
+    expect(response.status).toBe(200);
+    expect(response.headers.get("x-chatgpt-web-prompt-cache")).toBe("unsupported");
+    expect(response.headers.get("x-chatgpt-web-reasoning-state")).toBe("unavailable");
+    expect(response.headers.get("x-chatgpt-web-reasoning-summary")).toBe("unavailable");
+    const output = await response.text();
+    expect(output).toContain("Compatible reply");
+    expect(output).not.toContain("encrypted_content");
+    expect(observed.at(-1)!._rawBody).toBeUndefined();
+    expect(observed.at(-1)!.options.promptCacheKey).toBeUndefined();
+  }
+});
+
+test.each([
+  { include: ["web_search_call.action.sources"] },
+  { include: ["reasoning.encrypted_content", "message.output_text.logprobs"] },
+  { prompt_cache_retention: "forever" },
+  { input: [{ type: "reasoning", encrypted_content: "opaque-state-not-issued-by-browser" }] },
+])("unsupported hint or actual encrypted replay still fails before browser submission: %j", async controls => {
+  const observed: CodexParsedRequest[] = [];
+  const handler = createHermesHandler({ apiKey: key, capabilities, adapter: fixture({ type: "message", text: "ok" }, observed) });
+  expect((await handler(request(controls))).status).toBe(400);
+  expect(observed).toHaveLength(0);
+});
+
 test("streaming invalid envelope never leaks raw or unauthorized output", async () => {
   const handler = createHermesHandler({ apiKey: key, capabilities, adapter: fixture({ type: "tool_calls", calls: [{ name: "unlisted", arguments: {} }] }) });
   const response = await handler(request({ tools: [tool], stream: true }));
