@@ -63,6 +63,7 @@ export function createHermesHandler(options: HermesHandlerOptions) {
   const maxBody = options.maxBodyBytes ?? DEFAULT_MAX_BODY_BYTES;
   const maxReply = options.maxReplyBytes ?? 2 * 1024 * 1024;
   if (!Number.isSafeInteger(maxBody) || maxBody <= 0 || !Number.isSafeInteger(maxReply) || maxReply <= 0) throw new Error("Body and reply limits must be positive integers");
+  const startedAt = Date.now();
   const available = availableChatGptWebModelRoutes(options.capabilities);
   if (options.modelAllowlist?.some(model => !available.some(route => route.slug === model))) throw new Error("Model allowlist contains an unavailable browser model");
   const routes = available.filter(route => !options.modelAllowlist || options.modelAllowlist.includes(route.slug));
@@ -88,6 +89,15 @@ export function createHermesHandler(options: HermesHandlerOptions) {
             owned_by: "chatgpt-web",
             ...chatGptWebRouteContextMetadata(route, options.capabilities),
           })),
+        });
+      }
+      if (url.pathname === "/health") {
+        if (request.method !== "GET") throw new BridgeError("Method not allowed", 405);
+        return json({
+          status: "ok",
+          count: routes.length,
+          models: routes.map(route => route.slug),
+          uptime_seconds: Math.round((Date.now() - startedAt) / 1000),
         });
       }
       if (url.pathname === "/v1/chat/completions") {
