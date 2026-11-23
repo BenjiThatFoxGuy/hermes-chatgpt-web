@@ -19,6 +19,16 @@ _CONTEXT_CATALOG_TIMEOUT_SECONDS = 2.0
 
 _context_catalog_cache: dict[str, Any] = {"at": 0.0, "models": {}}
 
+# Models that always appear in the picker and fallback chain, even when the
+# bridge is temporarily unreachable (busy handling a turn, restarting, etc.).
+_STATIC_MODELS = (
+    "chatgpt-web/gpt-6-sol",
+    "chatgpt-web/gpt-5.6-sol",
+)
+
+# Last successful live model list, used as fallback when fetch_models fails.
+_last_known_models: list[str] | None = None
+
 
 class ChatGPTWebProfile(ProviderProfile):
     def __init__(self) -> None:
@@ -33,13 +43,18 @@ class ChatGPTWebProfile(ProviderProfile):
             supports_vision=True,
             supports_streaming=True,
             ambient_credentials=True,
+            static_models=_STATIC_MODELS,
         )
 
     def fetch_models(self, **kwargs: Any) -> list[str] | None:
+        global _last_known_models
         models = super().fetch_models(**kwargs)
         if models is None:
-            return None
-        return [model for model in models if model.startswith(CHATGPT_WEB_MODEL_PREFIX)]
+            # Bridge unreachable - return last known list so models don't vanish
+            return _last_known_models if _last_known_models else list(_STATIC_MODELS)
+        filtered = [model for model in models if model.startswith(CHATGPT_WEB_MODEL_PREFIX)]
+        _last_known_models = filtered
+        return filtered
 
     def get_model_context_length(self, model: str) -> int | None:
         """Context window the browser route can actually carry.
