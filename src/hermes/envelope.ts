@@ -63,8 +63,12 @@ export function prepareTurn(body: Record<string, unknown>) {
       ...done.usage, cachedInputTokens: 0, cacheReadInputTokens: 0, cacheCreationInputTokens: 0,
     } } : {}) };
     if (reply.type === "message") {
-      try { callerValidator?.(reply.text); } catch { throw new BridgeError("Browser answer violates the caller output schema", 502); }
-      return [{ type: "text_delta", text: reply.text }, { ...terminal, endTurn: true, stopReason: "stop" }];
+      // The browser model double-escapes newlines inside the JSON envelope text
+      // field (writes \\n instead of \n), so after JSON.parse we get literal \n
+      // two-char sequences instead of real newlines. Unescape them.
+      const text = reply.text.replace(/\\n/g, "\n").replace(/\\t/g, "\t").replace(/\\r/g, "\r");
+      try { callerValidator?.(text); } catch { throw new BridgeError("Browser answer violates the caller output schema", 502); }
+      return [{ type: "text_delta", text }, { ...terminal, endTurn: true, stopReason: "stop" }];
     }
     return [ ...reply.calls.flatMap((call: { name: string; arguments: object }): AdapterEvent[] => [
       { type: "tool_call_start", id: `call_${randomUUID().replaceAll("-", "")}`, name: call.name },
